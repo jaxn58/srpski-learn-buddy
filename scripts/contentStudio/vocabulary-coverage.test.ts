@@ -9,6 +9,7 @@ import {
   resolveClassifierAnchor,
 } from "../../convex/contentStudio/_validatorHelpers";
 import {
+  appendLatinScriptNote,
   cyrillicReadingExceptionBlock,
   transliterateSerbianCyrillicKey,
   unitTeachesCyrillicReading,
@@ -180,5 +181,15 @@ describe("Cyrillic reading units", () => {
     expect(cyrillicReadingExceptionBlock(1)).toBe("");
     expect(cyrillicReadingExceptionBlock(64)).toContain("CYRILLIC READING");
     expect(cyrillicReadingExceptionBlock(64)).toContain("Serbian column stay Latin");
+  });
+
+  it("stores the Latin spelling as a note when the headword is Cyrillic", () => {
+    expect(appendLatinScriptNote("захтев", undefined)).toBe("Latin: zahtev.");
+    expect(appendLatinScriptNote("пореска управа", "Chunk: fixed phrase.")).toBe(
+      "Chunk: fixed phrase.\nLatin: poreska uprava.",
+    );
+    expect(appendLatinScriptNote("захтев", "Latin: zahtev.")).toBe("Latin: zahtev.");
+    expect(appendLatinScriptNote("zahtev", "Gender: masculine.")).toBe("Gender: masculine.");
+    expect(appendLatinScriptNote("zahtev", undefined)).toBeUndefined();
   });
 });

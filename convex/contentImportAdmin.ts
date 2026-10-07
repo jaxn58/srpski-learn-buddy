@@ -7,6 +7,7 @@ import { scheduleUnitOverviewDigestRecompute } from "./contentStudio/_unitOvervi
 import { UnitPackageSchema, validateUnitPackageDeep } from "../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../scripts/unitPackage/autofix";
 import { findEarlierUnitVocabulary, toVocabularyKey } from "./vocabulary";
+import { appendLatinScriptNote } from "./contentStudio/_shared";
 import { purgeProgressForRemovedVocab } from "./contentStudio/_vocabularyProgressRemap";
 
 type FileInput = { fileName: string; unitPackage: unknown };
@@ -415,13 +416,15 @@ export const internalImportUnitPackage = internalMutation({
       if (entryNormKey) desiredKeys.add(entryNormKey);
 
       if (isReplace) {
+        const noteDe = appendLatinScriptNote(entry.serbian, undefined);
         const payload: any = {
           unitNumber: fixed.unitNumber,
           serbian: entry.serbian,
           serbianNormalized: entryNormKey,
           translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
-          noteEn: entry.noteEn || undefined,
+          noteEn: appendLatinScriptNote(entry.serbian, entry.noteEn),
+          ...(noteDe ? { noteDe } : {}),
           en: entry.en,
           isActive: true,
           archivedAt: undefined,
@@ -453,13 +456,15 @@ export const internalImportUnitPackage = internalMutation({
         },
       ];
 
+      const noteDe = appendLatinScriptNote(entry.serbian, existing?.noteDe);
       const payload: any = {
         unitNumber: fixed.unitNumber,
         serbian: entry.serbian,
         serbianNormalized: entryNormKey, // Case-insensitive + NFC-normalized
         translations,
         gender: entry.gender || undefined,
-        noteEn: entry.noteEn || undefined,
+        noteEn: appendLatinScriptNote(entry.serbian, entry.noteEn),
+        ...(noteDe ? { noteDe } : {}),
         en: entry.en,
       };
 

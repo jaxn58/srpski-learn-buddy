@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, internalMutation, query } from "../_generated/server";
-import { noteDraftSnapshotInserted, requireSuperadmin } from "./_shared";
+import { noteDraftSnapshotInserted, requireSuperadmin, appendLatinScriptNote } from "./_shared";
 import type { DraftStatus } from "./_shared";
 import {
   CS_PROMPT_KEYS,
@@ -2125,6 +2125,8 @@ export const internalPublishUnitPackageToPreview = mutation({
         }
 
         const prevDe = deTranslationMap.get(serbKey);
+        const noteEn = appendLatinScriptNote(entry.serbian, entry.noteEn);
+        const noteDe = appendLatinScriptNote(entry.serbian, prevDe?.noteDe);
         await ctx.db.insert("courseVocabulary", {
           unitNumber,
           serbian: entry.serbian,
@@ -2132,9 +2134,9 @@ export const internalPublishUnitPackageToPreview = mutation({
           en: entry.en,
           translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
-          noteEn: entry.noteEn || undefined,
+          noteEn,
           ...(prevDe?.de ? { de: prevDe.de } : {}),
-          ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
+          ...(noteDe ? { noteDe } : {}),
           isActive: true,
           archivedAt: undefined,
           unitVersion: args.unitVersion,
@@ -2472,7 +2474,9 @@ export const upsertPublishedUnitGermanTranslation = mutation({
 
       const patch: any = {};
       if (typeof vrow.de === "string") patch.de = vrow.de;
-      if (typeof vrow.noteDe === "string") patch.noteDe = vrow.noteDe;
+      if (typeof vrow.noteDe === "string") {
+        patch.noteDe = appendLatinScriptNote(String(doc.serbian ?? ""), vrow.noteDe);
+      }
       if (Object.keys(patch).length === 0) continue;
 
       await ctx.db.patch(id, patch);
@@ -2678,7 +2682,9 @@ export const upsertUnitGermanTranslationToPreview = mutation({
 
       const dePatch: any = {};
       if (typeof vrow.de === "string" && String(vrow.de).trim()) dePatch.de = String(vrow.de).trim();
-      if (typeof vrow.noteDe === "string" && String(vrow.noteDe).trim()) dePatch.noteDe = String(vrow.noteDe).trim();
+      if (typeof vrow.noteDe === "string" && String(vrow.noteDe).trim()) {
+        dePatch.noteDe = appendLatinScriptNote(String(src.serbian ?? ""), String(vrow.noteDe).trim());
+      }
 
       if (src.releaseStatus === "preview") {
         // Source is a preview row → patch DE fields directly; no new row needed.
@@ -2699,7 +2705,7 @@ export const upsertUnitGermanTranslationToPreview = mutation({
           pronunciation: typeof src.pronunciation === "string" ? src.pronunciation : undefined,
           audioUrl: typeof src.audioUrl === "string" ? src.audioUrl : undefined,
           audioStorageId: typeof src.audioStorageId === "string" ? src.audioStorageId : undefined,
-          noteEn: typeof src.noteEn === "string" ? src.noteEn : undefined,
+          noteEn: appendLatinScriptNote(String(src.serbian ?? ""), typeof src.noteEn === "string" ? src.noteEn : undefined),
           ...dePatch,
           isActive: true,
           archivedAt: undefined,
@@ -3402,6 +3408,8 @@ export const repairPublishedUnitVocabulary = internalMutation({
       const serbKey = toVocabularyKey(entry.serbian);
       if (!serbKey || seenKeys.has(serbKey)) continue;
       seenKeys.add(serbKey);
+      const noteEn = appendLatinScriptNote(entry.serbian, entry.noteEn);
+      const noteDe = appendLatinScriptNote(entry.serbian, undefined);
       await ctx.db.insert("courseVocabulary", {
         unitNumber,
         serbian: entry.serbian,
@@ -3409,7 +3417,8 @@ export const repairPublishedUnitVocabulary = internalMutation({
         en: entry.en,
         translations: [{ language: "en", translation: entry.en }],
         gender: entry.gender || undefined,
-        noteEn: entry.noteEn || undefined,
+        noteEn,
+        ...(noteDe ? { noteDe } : {}),
         isActive: true,
         archivedAt: undefined,
         unitVersion: 1,
@@ -3726,6 +3735,8 @@ export const internalCreatePreviewUnitVocabulary = mutation({
       }
 
       const prevDe = preservedMap.get(serbKey);
+      const noteEn = appendLatinScriptNote(entry.serbian, entry.noteEn);
+      const noteDe = appendLatinScriptNote(entry.serbian, prevDe?.noteDe);
       await ctx.db.insert("courseVocabulary", {
         unitNumber: args.unitNumber,
         serbian: entry.serbian,
@@ -3733,9 +3744,9 @@ export const internalCreatePreviewUnitVocabulary = mutation({
         en: entry.en,
         translations: [{ language: "en", translation: entry.en }],
         gender: entry.gender || undefined,
-        noteEn: entry.noteEn || undefined,
+        noteEn,
         ...(prevDe?.de ? { de: prevDe.de } : {}),
-        ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
+        ...(noteDe ? { noteDe } : {}),
         isActive: true,
         archivedAt: undefined,
         unitVersion: args.unitVersion,
@@ -4184,92 +4195,3 @@ export const backfillDraftSnapshotCounts = internalMutation({
     return { done: false };
   },
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

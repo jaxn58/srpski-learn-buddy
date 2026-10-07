@@ -7,6 +7,7 @@ import { spacedRepetitionXp, levelFromXp } from "./gamification";
 import { learnerTrackLanguage, markUnitCompletedIfReady } from "./lib/unitProgress";
 import { awardDueBadgesForUser } from "./badges";
 import { scheduleUnitOverviewDigestRecompute, scheduleUnitOverviewDigestRecomputeMany } from "./contentStudio/_unitOverviewDigest";
+import { appendLatinScriptNote, latinScriptNoteLine } from "./contentStudio/_shared";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -83,6 +84,14 @@ export const upsertCourseVocabulary = internalMutation({
       }
     }
 
+    const cyrillicHeadword = latinScriptNoteLine(args.serbian) !== null;
+    const noteFrom = (passed: string | undefined, stored: string | undefined) => {
+      if (passed !== undefined) return appendLatinScriptNote(args.serbian, passed);
+      if (!cyrillicHeadword) return undefined;
+      const ensured = appendLatinScriptNote(args.serbian, stored);
+      return ensured !== String(stored ?? "").trim() ? ensured : undefined;
+    };
+
     if (existing) {
       const updates: Partial<Doc<"courseVocabulary">> = {
         translations: args.translations, // Overwrite translations (source of truth is Markdown)
@@ -90,18 +99,28 @@ export const upsertCourseVocabulary = internalMutation({
         pronunciation: args.pronunciation,
         serbianNormalized, // Keep normalized field in sync
       };
-      
-      if (args.noteEn !== undefined) updates.noteEn = args.noteEn;
-      if (args.noteDe !== undefined) updates.noteDe = args.noteDe;
-      if (args.noteSr !== undefined) updates.noteSr = args.noteSr;
-      if (args.noteEs !== undefined) updates.noteEs = args.noteEs;
-      if (args.noteFr !== undefined) updates.noteFr = args.noteFr;
+
+      const noteEn = noteFrom(args.noteEn, existing.noteEn);
+      const noteDe = noteFrom(args.noteDe, existing.noteDe);
+      const noteSr = noteFrom(args.noteSr, existing.noteSr);
+      const noteEs = noteFrom(args.noteEs, existing.noteEs);
+      const noteFr = noteFrom(args.noteFr, existing.noteFr);
+      if (noteEn !== undefined) updates.noteEn = noteEn;
+      if (noteDe !== undefined) updates.noteDe = noteDe;
+      if (noteSr !== undefined) updates.noteSr = noteSr;
+      if (noteEs !== undefined) updates.noteEs = noteEs;
+      if (noteFr !== undefined) updates.noteFr = noteFr;
       
       await ctx.db.patch(existing._id, updates);
       await scheduleUnitOverviewDigestRecompute(ctx, args.unitNumber);
       return existing._id;
     }
 
+    const noteEn = appendLatinScriptNote(args.serbian, args.noteEn);
+    const noteDe = appendLatinScriptNote(args.serbian, args.noteDe);
+    const noteSr = appendLatinScriptNote(args.serbian, args.noteSr);
+    const noteEs = appendLatinScriptNote(args.serbian, args.noteEs);
+    const noteFr = appendLatinScriptNote(args.serbian, args.noteFr);
     const insertData: Omit<Doc<"courseVocabulary">, "_id" | "_creationTime"> = {
       unitNumber: args.unitNumber,
       serbian: args.serbian,
@@ -109,11 +128,11 @@ export const upsertCourseVocabulary = internalMutation({
       translations: args.translations,
       ...(args.gender !== undefined ? { gender: args.gender } : {}),
       ...(args.pronunciation !== undefined ? { pronunciation: args.pronunciation } : {}),
-      ...(args.noteEn !== undefined ? { noteEn: args.noteEn } : {}),
-      ...(args.noteDe !== undefined ? { noteDe: args.noteDe } : {}),
-      ...(args.noteSr !== undefined ? { noteSr: args.noteSr } : {}),
-      ...(args.noteEs !== undefined ? { noteEs: args.noteEs } : {}),
-      ...(args.noteFr !== undefined ? { noteFr: args.noteFr } : {}),
+      ...(noteEn !== undefined ? { noteEn } : {}),
+      ...(noteDe !== undefined ? { noteDe } : {}),
+      ...(noteSr !== undefined ? { noteSr } : {}),
+      ...(noteEs !== undefined ? { noteEs } : {}),
+      ...(noteFr !== undefined ? { noteFr } : {}),
     };
 
     const id = await ctx.db.insert("courseVocabulary", insertData);

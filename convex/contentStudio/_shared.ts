@@ -1425,10 +1425,32 @@ export function transliterateSerbianCyrillicKey(token: string): string | null {
 }
 
 /**
- * Appended after the Latin-script rules, and only for a Cyrillic-reading unit.
- * Vocabulary headwords stay Latin. The reading text, the alphabet chart and
- * the Notes line keep Cyrillic.
+ * Note line for a vocabulary headword stored in Cyrillic.
+ * Returns null when the headword is not purely Serbian Cyrillic.
+ * The line is "Latin: poreska uprava." so the learner still sees the course spelling.
  */
+export function latinScriptNoteLine(serbian: string): string | null {
+  const latin = transliterateSerbianCyrillicKey(String(serbian ?? "").trim());
+  if (!latin) return null;
+  return `Latin: ${latin}.`;
+}
+
+/**
+ * Keeps the existing note and adds the Latin spelling once.
+ * A headword that is already Latin is returned unchanged.
+ */
+export function appendLatinScriptNote(
+  serbian: string,
+  note: string | undefined | null,
+): string | undefined {
+  const line = latinScriptNoteLine(serbian);
+  const existing = String(note ?? "").trim();
+  if (!line) return existing || undefined;
+  if (/(?:^|\n)Latin:\s/i.test(existing)) return existing;
+  if (!existing) return line;
+  return `${existing}\n${line}`;
+}
+
 export function cyrillicReadingExceptionBlock(unitNumber: number, briefing = ""): string {
   if (!unitTeachesCyrillicReading(unitNumber, briefing)) return "";
   return [
