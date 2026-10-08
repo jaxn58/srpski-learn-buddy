@@ -455,6 +455,7 @@ export default function Home() {
   const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary, { learnerView: true });
   const dbModules = useQuery(api.modules.getAllModulesConsolidated);
   const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
+  const dbUnitsDe = useQuery(api.units.getAllUnitsMetadata, { language: "de" });
   
   // Generate modules data for landing page from database
   const MODULES_DATA = useMemo(() => {
@@ -469,6 +470,7 @@ export default function Home() {
     const base = buildLandingModuleCards({
       modules: dbModules as any,
       unitsEn: dbUnitsEn as any,
+      unitsDe: dbUnitsDe as any,
       vocab: courseVocabulary as any,
     });
 
@@ -485,8 +487,9 @@ export default function Home() {
       descriptionGerman: String((bySlug.get(m.id) as any)?.descriptionDe ?? ""),
       unitCount: m.unitCount,
       vocabCount: m.vocabCount,
+      units: m.units,
     }));
-  }, [dbModules, courseVocabulary, dbUnitsEn]);
+  }, [dbModules, courseVocabulary, dbUnitsEn, dbUnitsDe]);
 
   const HOME_COUNTS = useMemo(() => {
     return computeLandingCounts({
@@ -2050,7 +2053,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {MODULES_DATA.map((module: any) => {
               const pickText = (preferred: unknown, fallback: unknown): string => {
                 const p = typeof preferred === "string" ? preferred.trim() : "";
@@ -2066,6 +2069,8 @@ export default function Home() {
                 displayLanguage === "de"
                   ? pickText(module.descriptionGerman, module.description)
                   : pickText(module.description, module.descriptionGerman);
+              const units: Array<{ number: number; titleEn: string; titleDe: string }> =
+                Array.isArray(module.units) ? module.units : [];
               
               return (
               <Card 
@@ -2089,6 +2094,22 @@ export default function Home() {
                         {t("home.units.lessonsPlaceholder")}
                       </span>
                     </div>
+                    {units.length > 0 && (
+                      <ul className="space-y-1">
+                        {units.map((unit) => {
+                          const unitTitle =
+                            displayLanguage === "de"
+                              ? pickText(unit.titleDe, unit.titleEn)
+                              : pickText(unit.titleEn, unit.titleDe);
+                          return (
+                            <li key={unit.number} className="text-sm text-muted-foreground">
+                              <span className="font-medium text-foreground/80">{unit.number}.</span>{" "}
+                              {unitTitle}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 </CardContent>
               </Card>

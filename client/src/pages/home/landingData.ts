@@ -4,6 +4,12 @@ export type LandingCounts = {
   vocabCount: number;
 };
 
+export type LandingUnitTitle = {
+  number: number;
+  titleEn: string;
+  titleDe: string;
+};
+
 export type LandingModuleCard = {
   id: string;
   number: number;
@@ -11,9 +17,15 @@ export type LandingModuleCard = {
   description: string;
   unitCount: number;
   vocabCount: number;
+  units: LandingUnitTitle[];
 };
 
-type AnyUnit = { unitNumber?: number; moduleId?: string | null | undefined };
+type AnyUnit = {
+  unitNumber?: number;
+  moduleId?: string | null | undefined;
+  moduleMetadataId?: unknown;
+  title?: string | null | undefined;
+};
 type AnyModule = {
   _id?: unknown;
   slug?: string | null | undefined;
@@ -35,44 +47,88 @@ export function computeLandingCounts(args: {
   };
 }
 
+/**
+ * Same linkage as the in-app units page: the foreign key wins.
+ * A set moduleMetadataId that does not resolve is not replaced by the legacy slug.
+ */
+function resolveModuleSlug(unit: AnyUnit, idToSlug: Map<string, string>): string | null {
+  const metadataId = unit.moduleMetadataId;
+  if (metadataId != null && String(metadataId).length > 0) {
+    return idToSlug.get(String(metadataId)) ?? null;
+  }
+  const legacy = typeof unit.moduleId === "string" ? unit.moduleId.trim() : "";
+  return legacy || null;
+}
+
 export function buildLandingModuleCards(args: {
   modules: AnyModule[] | undefined;
   unitsEn: AnyUnit[] | undefined;
+  unitsDe?: AnyUnit[] | undefined;
   vocab: AnyVocab[] | undefined;
 }): LandingModuleCard[] {
   const modules = Array.isArray(args.modules) ? args.modules : [];
   const unitsEn = Array.isArray(args.unitsEn) ? args.unitsEn : [];
+  const unitsDe = Array.isArray(args.unitsDe) ? args.unitsDe : [];
   const vocab = Array.isArray(args.vocab) ? args.vocab : [];
 
   const vocabCountsByUnit = new Map<number, number>();
-  for (const word of vocab as AnyVocab[]) {
-    const unitNumber = Number((word as any)?.unitNumber);
+  for (const word of vocab) {
+    const unitNumber = Number(word?.unitNumber);
     if (!Number.isFinite(unitNumber)) continue;
     vocabCountsByUnit.set(unitNumber, (vocabCountsByUnit.get(unitNumber) || 0) + 1);
   }
 
-  const unitCountsByModuleSlug = new Map<string, number>();
-  for (const u of unitsEn as AnyUnit[]) {
-    const moduleId = (u as any)?.moduleId;
-    if (!moduleId) continue;
-    unitCountsByModuleSlug.set(moduleId, (unitCountsByModuleSlug.get(moduleId) || 0) + 1);
+  const idToSlug = new Map<string, string>();
+  for (const moduleDoc of modules) {
+    const id = moduleDoc._id;
+    const slug = typeof moduleDoc.slug === "string" ? moduleDoc.slug : "";
+    if (id == null || !slug) continue;
+    idToSlug.set(String(id), slug);
   }
 
-  return modules.map((m) => {
-    const slug = String((m as any)?.slug || "");
-    const moduleUnits = unitsEn.filter((u) => (u as any)?.moduleId === slug);
-    const vocabCount = moduleUnits.reduce((sum, u) => {
-      const unitNumber = Number((u as any)?.unitNumber);
-      return sum + (vocabCountsByUnit.get(unitNumber) || 0);
-    }, 0);
+  const titleDeByNumber = new Map<number, string>();
+  for (const unit of unitsDe) {
+    const unitNumber = Number(unit.unitNumber);
+    if (!Number.isFinite(unitNumber)) continue;
+    const title = typeof unit.title === "string" ? unit.title : "";
+    if (title) titleDeByNumber.set(unitNumber, title);
+  }
+
+  const unitsBySlug = new Map<string, LandingUnitTitle[]>();
+  for (const unit of unitsEn) {
+    const slug = resolveModuleSlug(unit, idToSlug);
+    if (!slug) continue;
+    const unitNumber = Number(unit.unitNumber);
+    if (!Number.isFinite(unitNumber)) continue;
+    const list = unitsBySlug.get(slug) ?? [];
+    if (list.some((entry) => entry.number === unitNumber)) continue;
+    list.push({
+      number: unitNumber,
+      titleEn: typeof unit.title === "string" ? unit.title : "",
+      titleDe: titleDeByNumber.get(unitNumber) ?? "",
+    });
+    unitsBySlug.set(slug, list);
+  }
+  for (const list of unitsBySlug.values()) {
+    list.sort((a, b) => a.number - b.number);
+  }
+
+  return modules.map((moduleDoc) => {
+    const slug = typeof moduleDoc.slug === "string" ? moduleDoc.slug : "";
+    const moduleUnits = unitsBySlug.get(slug) ?? [];
+    const vocabCount = moduleUnits.reduce(
+      (sum, unit) => sum + (vocabCountsByUnit.get(unit.number) || 0),
+      0,
+    );
 
     return {
-      id: slug || String((m as any)?._id || ""),
-      number: Number((m as any)?.moduleNumber || 0),
-      title: String((m as any)?.titleEn || ""),
-      description: String((m as any)?.descriptionEn || ""),
-      unitCount: unitCountsByModuleSlug.get(slug) || moduleUnits.length || 0,
+      id: slug || String(moduleDoc._id ?? ""),
+      number: Number(moduleDoc.moduleNumber || 0),
+      title: typeof moduleDoc.titleEn === "string" ? moduleDoc.titleEn : "",
+      description: typeof moduleDoc.descriptionEn === "string" ? moduleDoc.descriptionEn : "",
+      unitCount: moduleUnits.length,
       vocabCount,
+      units: moduleUnits,
     };
   });
 }

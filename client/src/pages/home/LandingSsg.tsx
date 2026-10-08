@@ -141,7 +141,7 @@ export function LandingSsg(props: {
                 />
               </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {modules.map((m) => (
                   <div key={m.id} className="border-2 bg-card rounded-xl p-6">
                     <div className="text-sm font-semibold text-primary mb-1">
@@ -152,6 +152,16 @@ export function LandingSsg(props: {
                     <div className="mt-3 text-sm text-muted-foreground">
                       {t("home.units.lessonsPlaceholder")}
                     </div>
+                    {m.units.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {m.units.map((unit) => (
+                          <li key={unit.number} className="text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground/80">{unit.number}.</span>{" "}
+                            {unit.titleEn}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>
