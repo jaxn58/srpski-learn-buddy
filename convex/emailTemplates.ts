@@ -958,3 +958,142 @@ export const autoTranslateMissingGerman = action({
     };
   }
 });
+
+const MAIL_COMPANY_LINE = "JACKSENN DESIGN DOO, Čeluga bb, Bar, Montenegro";
+const UNSENT_CAMPAIGN_STATUSES = new Set(["draft", "review", "ready", "scheduled"]);
+
+/**
+ * Footer and salutation copy used by newsletter and system mail.
+ * Idempotent: a second run leaves documents unchanged.
+ * Salutations only. A {{USER_NAME}} used as a labeled field stays as it is.
+ */
+export function applyMailFooterCopy(html: string, locale: "en" | "de"): string {
+  let next = html;
+  if (locale === "en") {
+    next = next.replace(/Dear\s+\{\{USER_NAME\}\}\s*[,!]?/g, "Hi {{FIRST_NAME}},");
+    next = next.replace(/Hi\s+\{\{USER_NAME\}\}\s*,/g, "Hi {{FIRST_NAME}},");
+  } else {
+    next = next.replace(/Hallo\s+\{\{USER_NAME\}\}\s*,/g, "Hallo {{FIRST_NAME}},");
+  }
+  next = next.replace(/©\s*2025/g, "©{{CURRENT_YEAR}}");
+  next = next.replace(/&copy;\s*2025/g, "©{{CURRENT_YEAR}}");
+  next = next.replace(/\{\{UNSUBSCRIBE_LINK\}\}/g, (match, offset: number, source: string) => {
+    const before = source.slice(Math.max(0, offset - 40), offset);
+    if (/href\s*=\s*["']\s*$/i.test(before)) return match;
+    return "";
+  });
+  if (next.includes("©{{CURRENT_YEAR}}") && !next.includes(MAIL_COMPANY_LINE)) {
+    next = next.replace(
+      "©{{CURRENT_YEAR}}",
+      `${MAIL_COMPANY_LINE}<br>\n©{{CURRENT_YEAR}}`,
+    );
+  }
+  return next;
+}
+
+function extendTemplateVariables(variables: string[], texts: string[]): string[] {
+  const blob = texts.join("\n");
+  const next = [...variables];
+  if (blob.includes("{{FIRST_NAME}}") && !next.includes("FIRST_NAME")) next.push("FIRST_NAME");
+  if (blob.includes("{{CURRENT_YEAR}}") && !next.includes("CURRENT_YEAR")) next.push("CURRENT_YEAR");
+  return next;
+}
+
+/**
+ * Dev copy update for signatures, every email template footer/salutation, and campaigns
+ * that have not been sent. Does not touch sent or in-flight campaigns.
+ */
+export const applyNewsletterAndSystemMailCopy = internalMutation({
+  args: { dryRun: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun === true;
+    const now = Date.now();
+    const changed: { kind: string; name: string }[] = [];
+
+    const signatures = await ctx.db.query("emailSignatures").collect();
+    for (const signature of signatures) {
+      const htmlContent = applyMailFooterCopy(signature.htmlContent, "en");
+      const htmlContentEn = signature.htmlContentEn
+        ? applyMailFooterCopy(signature.htmlContentEn, "en")
+        : undefined;
+      const htmlContentDe = signature.htmlContentDe
+        ? applyMailFooterCopy(signature.htmlContentDe, "de")
+        : undefined;
+      const signatureChanged =
+        htmlContent !== signature.htmlContent ||
+        (htmlContentEn !== undefined && htmlContentEn !== signature.htmlContentEn) ||
+        (htmlContentDe !== undefined && htmlContentDe !== signature.htmlContentDe);
+      if (!signatureChanged) continue;
+      changed.push({ kind: "signature", name: signature.category });
+      if (!dryRun) {
+        await ctx.db.patch(signature._id, {
+          htmlContent,
+          ...(htmlContentEn !== undefined ? { htmlContentEn } : {}),
+          ...(htmlContentDe !== undefined ? { htmlContentDe } : {}),
+          updatedAt: now,
+        });
+      }
+    }
+
+    const templates = await ctx.db.query("emailTemplates").collect();
+    for (const template of templates) {
+      const htmlContent = applyMailFooterCopy(template.htmlContent, "en");
+      const htmlContentEn = template.htmlContentEn
+        ? applyMailFooterCopy(template.htmlContentEn, "en")
+        : undefined;
+      const htmlContentDe = template.htmlContentDe
+        ? applyMailFooterCopy(template.htmlContentDe, "de")
+        : undefined;
+      const variables = extendTemplateVariables(template.variables, [
+        htmlContent,
+        htmlContentEn ?? "",
+        htmlContentDe ?? "",
+      ]);
+      const templateChanged =
+        htmlContent !== template.htmlContent ||
+        (htmlContentEn !== undefined && htmlContentEn !== template.htmlContentEn) ||
+        (htmlContentDe !== undefined && htmlContentDe !== template.htmlContentDe) ||
+        variables.join("|") !== template.variables.join("|");
+      if (!templateChanged) continue;
+      changed.push({ kind: "template", name: template.name });
+      if (!dryRun) {
+        await ctx.db.patch(template._id, {
+          htmlContent,
+          ...(htmlContentEn !== undefined ? { htmlContentEn } : {}),
+          ...(htmlContentDe !== undefined ? { htmlContentDe } : {}),
+          variables,
+          updatedAt: now,
+        });
+      }
+    }
+
+    const campaigns = await ctx.db.query("newsletterCampaigns").collect();
+    for (const campaign of campaigns) {
+      if (!UNSENT_CAMPAIGN_STATUSES.has(campaign.status)) continue;
+      const htmlBodySnapshot = campaign.htmlBodySnapshot
+        ? applyMailFooterCopy(campaign.htmlBodySnapshot, "en")
+        : undefined;
+      const htmlBodySnapshotEn = campaign.htmlBodySnapshotEn
+        ? applyMailFooterCopy(campaign.htmlBodySnapshotEn, "en")
+        : undefined;
+      const htmlBodySnapshotDe = campaign.htmlBodySnapshotDe
+        ? applyMailFooterCopy(campaign.htmlBodySnapshotDe, "de")
+        : undefined;
+      const campaignChanged =
+        (htmlBodySnapshot !== undefined && htmlBodySnapshot !== campaign.htmlBodySnapshot) ||
+        (htmlBodySnapshotEn !== undefined && htmlBodySnapshotEn !== campaign.htmlBodySnapshotEn) ||
+        (htmlBodySnapshotDe !== undefined && htmlBodySnapshotDe !== campaign.htmlBodySnapshotDe);
+      if (!campaignChanged) continue;
+      changed.push({ kind: "campaign", name: campaign.name });
+      if (!dryRun) {
+        await ctx.db.patch(campaign._id, {
+          ...(htmlBodySnapshot !== undefined ? { htmlBodySnapshot } : {}),
+          ...(htmlBodySnapshotEn !== undefined ? { htmlBodySnapshotEn } : {}),
+          ...(htmlBodySnapshotDe !== undefined ? { htmlBodySnapshotDe } : {}),
+        });
+      }
+    }
+
+    return { dryRun, changed };
+  },
+});
