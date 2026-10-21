@@ -5,6 +5,11 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { Resend } from "resend";
 import { assertLearnerAccountActive, assertAdminSecret } from "./authz";
 import { callAiJson } from "./contentStudio/_shared";
+import {
+  applyTemplateVariables,
+  firstNameFromFullName,
+  withStandardEmailVariables,
+} from "./emailTemplates";
 
 // ============= HELPER FUNCTIONS =============
 
@@ -412,12 +417,15 @@ export const requestWaitlistUpdatesDoubleOptIn = internalMutation({
       await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
         templateName: getOptInTemplateName("waitlist_updates"),
         variables: {
-          USER_NAME: contact.name || "there",
+          USER_NAME: contact.name?.trim() || "",
+          FIRST_NAME: firstNameFromFullName(contact.name),
           USER_EMAIL: contact.email,
+          CURRENT_YEAR: new Date().getFullYear(),
           CONFIRM_LINK: `${baseUrl}/newsletter/optin/confirm?token=${token}`,
           BETA_LAUNCH_NOTE: "If you don’t opt in, you’ll only receive the beta launch email.",
         },
         to: contact.email,
+        language: newsletterContentLocale(contact.preferredLocale),
       });
       return { success: true, alreadySubscribed: false };
     } catch (error) {
@@ -483,11 +491,14 @@ export const requestCommunityUpdatesDoubleOptIn = mutation({
       await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
         templateName: getOptInTemplateName("community_updates"),
         variables: {
-          USER_NAME: contact.name || "there",
+          USER_NAME: contact.name?.trim() || "",
+          FIRST_NAME: firstNameFromFullName(contact.name),
           USER_EMAIL: contact.email,
+          CURRENT_YEAR: new Date().getFullYear(),
           CONFIRM_LINK: `${baseUrl}/newsletter/optin/confirm?token=${token}`,
         },
         to: contact.email,
+        language: newsletterContentLocale(contact.preferredLocale),
       });
       return { success: true, alreadySubscribed: false };
     } catch (error) {
@@ -700,18 +711,24 @@ export const getAllContacts = query({
 });
 
 /**
- * Get contact by unsubscribe token (public for unsubscribe page)
+ * Public unsubscribe lookup. Returns only locale and subscription state, never the contact record.
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getContactByUnsubscribeToken = query({
   args: { token: v.string() },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
-    return await ctx.db
+    const contact = await ctx.db
       .query("newsletterContacts")
       // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_unsubscribe_token", (q) => q.eq("unsubscribeToken", args.token))
       .first();
+    if (!contact) return null;
+    const preferredLocale =
+      contact.preferredLocale === "de" || contact.preferredLocale === "en"
+        ? contact.preferredLocale
+        : null;
+    return { preferredLocale, subscribed: contact.subscribed };
   },
 });
 
@@ -1293,17 +1310,56 @@ export const translateNewsletterCampaign = action({
   },
 });
 
-const MAX_NEWSLETTER_TEST_EMAILS = 10;
+const MAX_NEWSLETTER_TEST_RECIPIENTS = 10;
 const NEWSLETTER_TEST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Trim, lowercase, drop the admin's own address and duplicates. Reject invalid addresses. */
+/** Whitelist entries used by campaign test mode and campaign test sends. Blank entries are dropped. */
+function parseNewsletterWhitelist(): string[] {
+  return (process.env.NEWSLETTER_WHITELIST || "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+}
+
+function newsletterContentLocale(preferred: string | undefined | null): "en" | "de" {
+  return preferred === "de" ? "de" : "en";
+}
+
+function unsubscribePageUrl(baseUrl: string, token: string, locale: "en" | "de"): string {
+  return `${baseUrl.replace(/\/$/, "")}/newsletter/unsubscribe?token=${token}&lang=${locale}`;
+}
+
+function newsletterOneClickBaseUrl(appBaseUrl: string): string {
+  return (
+    (process.env.CONVEX_SITE_URL || "").trim() ||
+    (process.env.CONVEX_CLOUD_URL || "").trim().replace(/\\.convex\\.cloud\\b/g, ".convex.site") ||
+    appBaseUrl
+  );
+}
+
+function listUnsubscribeHeaders(token: string, appBaseUrl: string): Record<string, string> {
+  const oneClickUnsubscribeUrl = `${newsletterOneClickBaseUrl(appBaseUrl).replace(/\/$/, "")}/newsletter/unsubscribe?token=${token}`;
+  return {
+    "List-Unsubscribe": `<${oneClickUnsubscribeUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
+/**
+ * Trim, lowercase, drop the admin's own address and duplicates.
+ * Extra addresses must be on NEWSLETTER_WHITELIST. Total cap includes the admin address.
+ */
 function normalizeNewsletterTestEmails(
   emails: string[],
   adminEmail: string | undefined,
 ): string[] {
   const adminKey = adminEmail?.trim().toLowerCase() ?? "";
+  const whitelist = new Set(parseNewsletterWhitelist());
   const seen = new Set<string>();
   const result: string[] = [];
+  const maxAdditional = adminKey
+    ? MAX_NEWSLETTER_TEST_RECIPIENTS - 1
+    : MAX_NEWSLETTER_TEST_RECIPIENTS;
 
   for (const raw of emails) {
     const email = raw.trim().toLowerCase();
@@ -1311,29 +1367,62 @@ function normalizeNewsletterTestEmails(
       throw new Error(`Invalid email address: ${raw.trim() || "(empty)"}`);
     }
     if (email === adminKey || seen.has(email)) continue;
+    if (!whitelist.has(email)) {
+      throw new Error(
+        `"${email}" is not on NEWSLETTER_WHITELIST. Test emails can only go to your admin address or whitelist addresses.`,
+      );
+    }
     seen.add(email);
     result.push(email);
   }
 
-  if (result.length > MAX_NEWSLETTER_TEST_EMAILS) {
-    throw new Error(`At most ${MAX_NEWSLETTER_TEST_EMAILS} additional test addresses`);
+  if (result.length > maxAdditional) {
+    throw new Error(
+      `At most ${MAX_NEWSLETTER_TEST_RECIPIENTS} test addresses in total, including your admin address`,
+    );
   }
   return result;
 }
 
-function applyNewsletterTemplateVars(
-  html: string,
-  subject: string,
-  vars: Record<string, string>,
-): { html: string; subject: string } {
-  let nextHtml = html;
-  let nextSubject = subject;
-  for (const [key, value] of Object.entries(vars)) {
-    const re = new RegExp(`\\{\\{${key}\\}\\}`, "g");
-    nextHtml = nextHtml.replace(re, value);
-    nextSubject = nextSubject.replace(re, value);
+/**
+ * Recipients for one test send. Omitted list defaults to the admin address.
+ * An empty or disallowed list throws before anything is sent.
+ */
+function resolveTestRecipientEmails(
+  testRecipients: string[] | undefined,
+  adminEmail: string,
+): string[] {
+  const adminKey = adminEmail.trim().toLowerCase();
+  if (!testRecipients) return [adminKey];
+  if (testRecipients.length === 0) {
+    throw new Error("Test recipient list is empty. Refusing to send.");
   }
-  return { html: nextHtml, subject: nextSubject };
+
+  const whitelist = new Set(parseNewsletterWhitelist());
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of testRecipients) {
+    const email = raw.trim().toLowerCase();
+    if (!email || !NEWSLETTER_TEST_EMAIL_RE.test(email)) {
+      throw new Error(`Invalid email address: ${raw.trim() || "(empty)"}`);
+    }
+    if (seen.has(email)) continue;
+    if (email !== adminKey && !whitelist.has(email)) {
+      throw new Error(
+        `"${email}" is not allowed. Test emails can only go to your admin address or NEWSLETTER_WHITELIST.`,
+      );
+    }
+    seen.add(email);
+    result.push(email);
+  }
+
+  if (result.length === 0) {
+    throw new Error("Test recipient list is empty. Refusing to send.");
+  }
+  if (result.length > MAX_NEWSLETTER_TEST_RECIPIENTS) {
+    throw new Error(`At most ${MAX_NEWSLETTER_TEST_RECIPIENTS} test addresses.`);
+  }
+  return result;
 }
 
 /**
@@ -1375,17 +1464,98 @@ export const updateMyNewsletterTestRecipients = mutation({
 });
 
 /**
- * Send a test preview of a campaign to the calling admin and their saved extra addresses.
- * Does NOT affect campaign status or create email logs.
+ * Resolve test-send addresses to existing contacts.
+ * Index lookup first; one table scan only when an address is stored with different casing.
+ * Missing addresses are returned and must abort the send. This never selects other contacts.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const internalResolveContactsByEmail = internalQuery({
+  args: { emails: v.array(v.string()) },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    const resolved: { email: string; contact: Doc<"newsletterContacts"> }[] = [];
+    const missing: string[] = [];
+    const pending = new Map<string, string>();
+
+    for (const raw of args.emails) {
+      const normalized = raw.trim().toLowerCase();
+      let contact = await ctx.db
+        .query("newsletterContacts")
+        // @ts-ignore TS2589
+        .withIndex("by_email", (q) => q.eq("email", normalized))
+        .first();
+      if (!contact && raw.trim() !== normalized) {
+        const trimmed = raw.trim();
+        contact = await ctx.db
+          .query("newsletterContacts")
+          // @ts-ignore TS2589
+          .withIndex("by_email", (q) => q.eq("email", trimmed))
+          .first();
+      }
+      if (contact) resolved.push({ email: normalized, contact });
+      else pending.set(normalized, raw.trim());
+    }
+
+    if (pending.size > 0) {
+      const all = await ctx.db.query("newsletterContacts").collect();
+      for (const contact of all) {
+        const key = contact.email.trim().toLowerCase();
+        if (!pending.has(key)) continue;
+        resolved.push({ email: key, contact });
+        pending.delete(key);
+      }
+      for (const email of pending.keys()) missing.push(email);
+    }
+
+    return { resolved, missing };
+  },
+});
+
+/** Log a test send. Does not change campaign status or counters. */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const insertTestEmailLog = internalMutation({
+  args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    campaignId: v.id("newsletterCampaigns"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    contactId: v.id("newsletterContacts"),
+    email: v.string(),
+  },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("newsletterEmailLogs", {
+      campaignId: args.campaignId,
+      contactId: args.contactId,
+      email: args.email,
+      status: "pending",
+      openedCount: 0,
+      clickedCount: 0,
+      clickedLinks: [],
+      retryCount: 0,
+      isTest: true,
+    });
+  },
+});
+
+/**
+ * Send a test of a campaign to the admin address or an explicit whitelist-limited list.
+ * Uses each contact's real unsubscribe token and the same tracking-link transform as a real send.
+ * Does not change campaign status, sentCount, totalRecipients, or sentAt.
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const sendCampaignTestEmail = action({
   args: {
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     campaignId: v.id("newsletterCampaigns"),
-    /** "en" | "de" – which language version to send */
+    /** "en" | "de" – which language version to send. Omitted uses English. */
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     locale: v.optional(v.union(v.literal("en"), v.literal("de"))),
+    /**
+     * Explicit recipients. Omitted = the calling admin's address.
+     * Empty, invalid, or non-whitelist addresses fail the whole call.
+     */
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    testRecipients: v.optional(v.array(v.string())),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args): Promise<{
@@ -1406,14 +1576,20 @@ export const sendCampaignTestEmail = action({
     const adminEmail = adminUser.email?.trim();
     if (!adminEmail) throw new Error("Admin account has no email address");
 
-    const seen = new Set<string>([adminEmail.toLowerCase()]);
-    const recipients = [adminEmail];
-    for (const extra of adminUser.newsletterTestEmails ?? []) {
-      const normalized = extra.trim().toLowerCase();
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      recipients.push(normalized);
+    const recipients = resolveTestRecipientEmails(args.testRecipients, adminEmail);
+
+    const resolvedContacts = await ctx.runQuery(internal.newsletter.internalResolveContactsByEmail, {
+      emails: recipients,
+    });
+    if (resolvedContacts.missing.length > 0) {
+      throw new Error(
+        `No newsletter contact for: ${resolvedContacts.missing.join(", ")}. Add each address under Contacts with source "manual", tag "test", and subscribed false before sending a test.`,
+      );
     }
+
+    const contactByEmail = new Map(
+      resolvedContacts.resolved.map((entry) => [entry.email, entry.contact]),
+    );
 
     const campaign = (await ctx.runQuery(internal.newsletter.internalGetCampaign, {
       campaignId: args.campaignId,
@@ -1426,59 +1602,101 @@ export const sendCampaignTestEmail = action({
     const useDe = locale === "de" && hasDe;
 
     // @ts-ignore TS2339
-    let html: string = useDe
+    let htmlTemplate: string = useDe
       ? campaign.htmlBodySnapshotDe!
       : (campaign.htmlBodySnapshotEn ?? campaign.htmlBodySnapshot ?? "");
     // @ts-ignore TS2339
-    let subject: string = useDe
+    let subjectTemplate: string = useDe
       ? (campaign.subjectDe ?? campaign.subjectEn ?? campaign.subject ?? "")
       : (campaign.subjectEn ?? campaign.subject ?? "");
 
-    if (!html.trim()) throw new Error("Campaign has no HTML body. Save content before sending a test.");
+    if (!htmlTemplate.trim()) throw new Error("Campaign has no HTML body. Save content before sending a test.");
 
     const signatureHtml = await ctx.runQuery(internal.newsletter.internalGetMarketingSignatureHtml, {
       locale: useDe ? "de" : "en",
     });
     if (signatureHtml) {
       const sigRe = /\{\{EMAIL_SIGNATURE\}\}/g;
-      html = html.replace(sigRe, signatureHtml);
-      subject = subject.replace(sigRe, "");
+      htmlTemplate = htmlTemplate.replace(sigRe, signatureHtml);
+      subjectTemplate = subjectTemplate.replace(sigRe, "");
     }
-
-    const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
-    const shared = applyNewsletterTemplateVars(html, subject, {
-      USER_NAME: adminUser.name || "Admin",
-      UNSUBSCRIBE_LINK: `${baseUrl}/newsletter/unsubscribe?token=TEST-TOKEN`,
-    });
 
     if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY not configured");
     const resend = new Resend(process.env.RESEND_API_KEY);
     const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
+    const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
 
     const sentTo: string[] = [];
     const failed: { email: string; error: string }[] = [];
 
     for (const recipient of recipients) {
-      const personalized = applyNewsletterTemplateVars(shared.html, shared.subject, {
-        USER_EMAIL: recipient,
+      const contact = contactByEmail.get(recipient);
+      if (!contact) {
+        throw new Error(
+          `No newsletter contact for: ${recipient}. Add each address under Contacts with source "manual", tag "test", and subscribed false before sending a test.`,
+        );
+      }
+
+      const pageLocale = newsletterContentLocale(contact.preferredLocale);
+      const personalized = applyTemplateVariables(
+        htmlTemplate,
+        subjectTemplate,
+        withStandardEmailVariables({
+          USER_NAME: contact.name?.trim() || "",
+          FIRST_NAME: firstNameFromFullName(contact.name),
+          USER_EMAIL: contact.email,
+          UNSUBSCRIBE_LINK: unsubscribePageUrl(baseUrl, contact.unsubscribeToken, pageLocale),
+          CURRENT_YEAR: new Date().getFullYear(),
+        }),
+      );
+      const emailLogId = await ctx.runMutation(internal.newsletter.insertTestEmailLog, {
+        campaignId: args.campaignId,
+        contactId: contact._id,
+        email: contact.email,
       });
+      const html = transformLinksInHtml(
+        personalized.html,
+        args.campaignId,
+        contact._id,
+        emailLogId,
+        baseUrl,
+      );
+
       try {
-        const { error } = await resend.emails.send({
+        const { data, error } = await resend.emails.send({
           from: `Serbian AI Tutor <${FROM_EMAIL}>`,
-          to: recipient,
+          to: contact.email,
           subject: `[TEST] ${personalized.subject}`,
-          html: personalized.html,
+          html,
+          headers: listUnsubscribeHeaders(contact.unsubscribeToken, baseUrl),
         });
         if (error) {
-          failed.push({ email: recipient, error: error.message || "Resend error" });
+          const message = error.message || "Resend error";
+          await ctx.runMutation(internal.newsletter.updateEmailLogStatus, {
+            emailLogId,
+            status: "failed",
+            lastError: message,
+            retryCount: 1,
+          });
+          failed.push({ email: recipient, error: message });
         } else {
+          await ctx.runMutation(internal.newsletter.updateEmailLogStatus, {
+            emailLogId,
+            status: "sent",
+            resendMessageId: data?.id,
+            sentAt: Date.now(),
+          });
           sentTo.push(recipient);
         }
       } catch (e: unknown) {
-        failed.push({
-          email: recipient,
-          error: e instanceof Error ? e.message : "Send failed",
+        const message = e instanceof Error ? e.message : "Send failed";
+        await ctx.runMutation(internal.newsletter.updateEmailLogStatus, {
+          emailLogId,
+          status: "failed",
+          lastError: message,
+          retryCount: 1,
         });
+        failed.push({ email: recipient, error: message });
       }
     }
 
@@ -1572,6 +1790,87 @@ export const updateContactPreferredLocale = mutation({
 
 // ============= CAMPAIGN SENDING =============
 
+type CampaignRecipientSelection =
+  | { ok: true; contacts: Doc<"newsletterContacts">[] }
+  | { ok: false; error: string };
+
+/**
+ * Subscribed contacts that match a campaign's environment, tags, source, and test-mode whitelist.
+ * Returns an error instead of an empty list so callers can abort before any campaign write.
+ */
+async function selectCampaignRecipients(
+  ctx: CtxWithDb,
+  campaign: Doc<"newsletterCampaigns">,
+): Promise<CampaignRecipientSelection> {
+  let contacts = await ctx.db
+    .query("newsletterContacts")
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    .withIndex("by_subscribed", (q) => q.eq("subscribed", true))
+    .collect();
+
+  const environment = getEnvironment();
+  contacts = contacts.filter((c) => c.environment === environment);
+
+  // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+  if (campaign.targetTags.length > 0) {
+    contacts = contacts.filter((contact) =>
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+      campaign.targetTags.some((tag: string) => contact.tags.includes(tag)),
+    );
+  }
+
+  // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+  if (campaign.targetSource && campaign.targetSource !== "all") {
+    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+    contacts = contacts.filter((c) => c.source === campaign.targetSource);
+  }
+
+  // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+  if (campaign.testMode || process.env.NEWSLETTER_TEST_MODE === "true") {
+    const whitelist = parseNewsletterWhitelist();
+    if (whitelist.length === 0) {
+      return {
+        ok: false,
+        error: "NEWSLETTER_WHITELIST is empty. Refusing to send.",
+      };
+    }
+    const allowed = new Set(whitelist);
+    contacts = contacts.filter((c) => allowed.has(c.email.trim().toLowerCase()));
+    console.log(`[Newsletter] TEST MODE: ${contacts.length} whitelist contacts match`);
+  }
+
+  if (contacts.length === 0) {
+    return { ok: false, error: "No contacts match the campaign criteria" };
+  }
+
+  return { ok: true, contacts };
+}
+
+/**
+ * Recipient count for the send confirmation dialog. Same selection as sendCampaign, no writes.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const getCampaignSendPreview = query({
+  args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    campaignId: v.id("newsletterCampaigns"),
+  },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+
+    const campaign = await ctx.db.get(args.campaignId);
+    if (!campaign) throw new Error("Campaign not found");
+
+    const selected = await selectCampaignRecipients(ctx, campaign);
+    if (!selected.ok) {
+      return { recipientCount: 0, error: selected.error };
+    }
+    return { recipientCount: selected.contacts.length, error: null as string | null };
+  },
+});
+
 /**
  * Send campaign (admin only)
  * Creates email logs and schedules batch sending
@@ -1604,47 +1903,11 @@ export const sendCampaign = mutation({
       throw new Error("Campaign has no English HTML body. Save content before sending.");
     }
 
-    // Get target contacts
-    let contacts = await ctx.db
-      .query("newsletterContacts")
-      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-      .withIndex("by_subscribed", (q) => q.eq("subscribed", true))
-      .collect();
-
-    const environment = getEnvironment();
-
-    // Filter by environment (dev only sends to dev contacts)
-    contacts = contacts.filter(c => c.environment === environment);
-
-    // Filter by target tags
-    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-    if (campaign.targetTags.length > 0) {
-      contacts = contacts.filter(contact =>
-        // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-        campaign.targetTags.some(tag => contact.tags.includes(tag))
-      );
+    const selected = await selectCampaignRecipients(ctx, campaign);
+    if (!selected.ok) {
+      throw new Error(selected.error);
     }
-
-    // Filter by target source
-    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-    if (campaign.targetSource && campaign.targetSource !== "all") {
-      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-      contacts = contacts.filter(c => c.source === campaign.targetSource);
-    }
-
-    // Test mode: Filter by whitelist
-    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-    if (campaign.testMode || process.env.NEWSLETTER_TEST_MODE === "true") {
-      const whitelist = (process.env.NEWSLETTER_WHITELIST || "").split(",").map(e => e.trim());
-      if (whitelist.length > 0) {
-        contacts = contacts.filter(c => whitelist.includes(c.email));
-        console.log(`[Newsletter] TEST MODE: Sending only to whitelist (${contacts.length} contacts)`);
-      }
-    }
-
-    if (contacts.length === 0) {
-      throw new Error("No contacts match the campaign criteria");
-    }
+    const contacts = selected.contacts;
 
     // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
     console.log(`[Newsletter] Preparing to send campaign "${campaign.name}" to ${contacts.length} contacts`);
@@ -1730,12 +1993,6 @@ export const sendEmailBatch = internalAction({
     const resend = new Resend(process.env.RESEND_API_KEY);
     const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
     const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
-    // Convex HTTP actions are served from the `*.convex.site` domain.
-    // We prefer CONVEX_SITE_URL when available, otherwise derive it from CONVEX_CLOUD_URL.
-    const oneClickBaseUrl =
-      (process.env.CONVEX_SITE_URL || "").trim() ||
-      (process.env.CONVEX_CLOUD_URL || "").trim().replace(/\\.convex\\.cloud\\b/g, ".convex.site") ||
-      baseUrl;
 
     let successCount = 0;
     let errorCount = 0;
@@ -1801,17 +2058,23 @@ export const sendEmailBatch = internalAction({
           subject = subject.replace(sigRe, signatureHtml);
         }
 
-        const variables: Record<string, string | number> = {
-          USER_NAME: contact.name || "there",
-          USER_EMAIL: contact.email,
-          UNSUBSCRIBE_LINK: `${baseUrl}/newsletter/unsubscribe?token=${contact.unsubscribeToken}`,
-        };
-
-        for (const [key, value] of Object.entries(variables)) {
-          const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
-          html = html.replace(regex, String(value));
-          subject = subject.replace(regex, String(value));
-        }
+        const personalized = applyTemplateVariables(
+          html,
+          subject ?? "",
+          withStandardEmailVariables({
+            USER_NAME: contact.name?.trim() || "",
+            FIRST_NAME: firstNameFromFullName(contact.name),
+            USER_EMAIL: contact.email,
+            UNSUBSCRIBE_LINK: unsubscribePageUrl(
+              baseUrl,
+              contact.unsubscribeToken,
+              newsletterContentLocale(contact.preferredLocale),
+            ),
+            CURRENT_YEAR: new Date().getFullYear(),
+          }),
+        );
+        html = personalized.html;
+        subject = personalized.subject;
 
         if (!html.trim()) {
           console.error(`[Newsletter] No HTML body for ${contact.email}, skipping`);
@@ -1828,19 +2091,13 @@ export const sendEmailBatch = internalAction({
         // Transform links for tracking (lazy)
         html = await transformLinksInHtml(html, args.campaignId, contact._id, emailLogId, baseUrl);
 
-        // Send email via Resend
-        const oneClickUnsubscribeUrl = `${oneClickBaseUrl.replace(/\/$/, "")}/newsletter/unsubscribe?token=${contact.unsubscribeToken}`;
+        // Send email via Resend. One-click unsubscribe hits Convex HTTP Actions, not the SPA.
         const { data, error } = await resend.emails.send({
           from: `Serbian AI Tutor <${FROM_EMAIL}>`,
           to: contact.email,
           subject: subject,
           html: html,
-          headers: {
-            // One-click unsubscribe must hit a server endpoint (email clients won't execute JS).
-            // Vercel rewrites all non-/api routes to the SPA, so we point this to Convex HTTP Actions.
-            "List-Unsubscribe": `<${oneClickUnsubscribeUrl}>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-          },
+          headers: listUnsubscribeHeaders(contact.unsubscribeToken, baseUrl),
         });
 
         if (error) {
@@ -2048,7 +2305,10 @@ export const checkCampaignComplete = internalMutation({
       .withIndex("by_campaign", (q) => q.eq("campaignId", args.campaignId))
       .collect();
 
-    const pending = emailLogs.filter(log => log.status === "pending").length;
+    const realLogs = emailLogs.filter((log) => !log.isTest);
+    if (realLogs.length === 0) return;
+
+    const pending = realLogs.filter((log) => log.status === "pending").length;
 
     if (pending === 0) {
       // Campaign complete
@@ -2126,15 +2386,18 @@ export const recordLinkClick = mutation({
         lastClickedAt: Date.now(),
       });
 
-      // Update campaign stats
+      // Test clicks stay on the log and do not move campaign counters.
       // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-      const campaign = await ctx.db.get(emailLog.campaignId);
-      if (campaign) {
+      if (!emailLog.isTest) {
         // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-        await ctx.db.patch(emailLog.campaignId, {
+        const campaign = await ctx.db.get(emailLog.campaignId);
+        if (campaign) {
           // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-          clickedCount: (campaign.clickedCount || 0) + 1,
-        });
+          await ctx.db.patch(emailLog.campaignId, {
+            // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+            clickedCount: (campaign.clickedCount || 0) + 1,
+          });
+        }
       }
     }
 
@@ -2236,6 +2499,10 @@ export const updateEmailLogFromWebhook = internalMutation({
 
     await ctx.db.patch(emailLogId, updates);
 
+    // Test deliveries, opens, and bounces stay on the log.
+    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
+    if (emailLog.isTest) return;
+
     // Update campaign stats
     // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
     const campaign = await ctx.db.get(emailLog.campaignId);
@@ -2278,12 +2545,12 @@ export const getCampaignStats = query({
     const campaign = await ctx.db.get(args.campaignId);
     if (!campaign) throw new Error("Campaign not found");
 
-    // Get email logs for detailed stats
-    const emailLogs = await ctx.db
+    // Get email logs for detailed stats. Test sends are excluded.
+    const emailLogs = (await ctx.db
       .query("newsletterEmailLogs")
       // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_campaign", (q) => q.eq("campaignId", args.campaignId))
-      .collect();
+      .collect()).filter((log) => !log.isTest);
 
     const stats = {
       total: emailLogs.length,

@@ -2,6 +2,7 @@ import { action, internalAction, ActionCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { api, internal } from "./_generated/api";
+import { applyTemplateVariables, withStandardEmailVariables } from "./emailTemplates";
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
 const REPLY_TO_EMAIL = process.env.RESEND_REPLY_TO_EMAIL || "hello@jacksenn.me";
@@ -188,13 +189,13 @@ export const sendTestEmail = action({
       de: template.subjectDe,
     });
 
-    // Replace variables
-    for (const [key, value] of Object.entries(vars)) {
-      const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
-      const stringValue = String(value);
-      renderedHtml = renderedHtml.replace(regex, stringValue);
-      renderedSubject = renderedSubject.replace(regex, stringValue);
-    }
+    const personalized = applyTemplateVariables(
+      renderedHtml,
+      renderedSubject,
+      withStandardEmailVariables(vars),
+    );
+    renderedHtml = personalized.html;
+    renderedSubject = personalized.subject;
 
     const { data, error } = await resend.emails.send({
       from: `Serbian AI Tutor <${FROM_EMAIL}>`,

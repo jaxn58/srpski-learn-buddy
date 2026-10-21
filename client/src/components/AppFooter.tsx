@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
-export function AppFooter({ className }: { className?: string }) {
+export function AppFooter({ className, lng }: { className?: string; lng?: "en" | "de" }) {
   const { t } = useTranslation();
+  const year = new Date().getFullYear();
+  const options = lng ? { lng } : undefined;
 
   return (
     <footer
@@ -21,23 +23,23 @@ export function AppFooter({ className }: { className?: string }) {
               className="underline underline-offset-4 hover:text-foreground"
               href="/terms#terms"
             >
-              {t("footer.terms")}
+              {t("footer.terms", options)}
             </a>
             <a
               className="underline underline-offset-4 hover:text-foreground"
               href="/terms#privacy"
             >
-              {t("footer.privacy")}
+              {t("footer.privacy", options)}
             </a>
             <a
               className="underline underline-offset-4 hover:text-foreground"
               href="/terms#refunds"
             >
-              {t("footer.refunds")}
+              {t("footer.refunds", options)}
             </a>
           </nav>
 
-          <p className="font-semibold">{t("home.footer.copyright")}</p>
+          <p className="font-semibold">{t("home.footer.copyright", { ...options, year })}</p>
         </div>
       </div>
     </footer>

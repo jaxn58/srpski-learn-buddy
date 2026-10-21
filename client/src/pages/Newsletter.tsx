@@ -16,6 +16,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
@@ -43,6 +52,90 @@ type ContactDoc = Doc<"newsletterContacts">;
 type ContentTab = "wysiwyg" | "code" | "emailPreview";
 
 const PRE_SEND = new Set(["draft", "review", "ready"]);
+
+function CampaignSendDialog({
+  campaign,
+  open,
+  onOpenChange,
+  onSent,
+}: {
+  campaign: CampaignDoc | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSent?: () => void;
+}) {
+  const { t } = useTranslation();
+  const sendCampaign = useMutation(api.newsletter.sendCampaign);
+  const preview = useQuery(
+    api.newsletter.getCampaignSendPreview,
+    open && campaign ? { campaignId: campaign._id } : "skip",
+  );
+  const [typedName, setTypedName] = useState("");
+  const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (!open) setTypedName("");
+  }, [open]);
+
+  if (!campaign) return null;
+
+  const nameMatches = typedName === campaign.name;
+  const canSend =
+    !!preview && preview.error === null && preview.recipientCount > 0 && nameMatches && !isSending;
+
+  async function handleConfirm() {
+    if (!campaign || !canSend) return;
+    setIsSending(true);
+    try {
+      const result = await sendCampaign({ campaignId: campaign._id });
+      toast.success(
+        t("admin.newsletter.toast.campaignScheduled", {
+          recipients: result.totalRecipients,
+          batches: result.batches,
+        }),
+      );
+      onOpenChange(false);
+      onSent?.();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : t("admin.newsletter.toast.campaignSendFailed"));
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Send campaign</AlertDialogTitle>
+          <AlertDialogDescription>
+            {preview === undefined
+              ? "Counting recipients…"
+              : preview.error
+                ? preview.error
+                : `This sends the campaign to ${preview.recipientCount} subscribed contact${preview.recipientCount === 1 ? "" : "s"}. This cannot be undone.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="confirm-campaign-name">Type the campaign name to confirm</Label>
+          <Input
+            id="confirm-campaign-name"
+            value={typedName}
+            onChange={(e) => setTypedName(e.target.value)}
+            autoComplete="off"
+          />
+          <p className="text-sm text-muted-foreground">{campaign.name}</p>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isSending}>Cancel</AlertDialogCancel>
+          <Button variant="destructive" disabled={!canSend} onClick={() => void handleConfirm()}>
+            {isSending ? "Sending…" : "Send campaign"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 const EMAIL_SNIPPETS = [
   {
@@ -134,10 +227,10 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
   const campaigns = useQuery(api.newsletter.getAllCampaigns, {});
   const emailTemplates = useQuery(api.emailTemplates.getAll);
   const createCampaign = useMutation(api.newsletter.createCampaign);
-  const sendCampaign = useMutation(api.newsletter.sendCampaign);
   const deleteCampaign = useMutation(api.newsletter.deleteCampaign);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [sendTarget, setSendTarget] = useState<CampaignDoc | null>(null);
 
   const [newCampaign, setNewCampaign] = useState({
     name: "",
@@ -167,16 +260,6 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
       setNewCampaign({ name: "", subject: "", templateName: "", description: "", targetTags: "", targetSource: "all", testMode: true });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : t("admin.newsletter.toast.campaignCreateFailed"));
-    }
-  };
-
-  const handleSendCampaign = async (campaignId: Id<"newsletterCampaigns">) => {
-    if (!confirm("Send this newsletter campaign to all matching subscribed contacts?")) return;
-    try {
-      const result = await sendCampaign({ campaignId });
-      toast.success(t("admin.newsletter.toast.campaignScheduled", { recipients: result.totalRecipients, batches: result.batches }));
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("admin.newsletter.toast.campaignSendFailed"));
     }
   };
 
@@ -331,7 +414,7 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
                       {PRE_SEND.has(campaign.status) ? "Edit" : "View"}
                     </Button>
                     {campaign.status === "ready" && (
-                      <Button size="sm" variant="default" onClick={() => handleSendCampaign(campaign._id)}>
+                      <Button size="sm" variant="destructive" onClick={() => setSendTarget(campaign)}>
                         <Send className="mr-2 h-4 w-4" />
                         Send
                       </Button>
@@ -366,6 +449,13 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
           ))
         )}
       </div>
+      <CampaignSendDialog
+        campaign={sendTarget}
+        open={sendTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setSendTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -405,7 +495,6 @@ function CampaignEditorView({
   const updateCampaign = useMutation(api.newsletter.updateCampaign);
   const translateAction = useAction(api.newsletter.translateNewsletterCampaign);
   const sendTestEmailAction = useAction(api.newsletter.sendCampaignTestEmail);
-  const sendCampaignMutation = useMutation(api.newsletter.sendCampaign);
   const generateUploadUrl = useMutation(api.newsletter.generateNewsletterImageUploadUrl);
   const testRecipientsQuery = useQuery(api.newsletter.getMyNewsletterTestRecipients, {});
   const testRecipients: NewsletterTestRecipients | undefined = testRecipientsQuery;
@@ -428,7 +517,8 @@ function CampaignEditorView({
   const [isTranslating, setIsTranslating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
-  const [isSendingCampaign, setIsSendingCampaign] = useState(false);
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [isTestConfirmOpen, setIsTestConfirmOpen] = useState(false);
   const [isRecipientsOpen, setIsRecipientsOpen] = useState(false);
   const [draftRecipient, setDraftRecipient] = useState("");
   const [editingRecipientIndex, setEditingRecipientIndex] = useState<number | null>(null);
@@ -477,7 +567,9 @@ function CampaignEditorView({
           next[v] =
             v === "USER_EMAIL" ? "reader@example.com"
             : v === "USER_NAME" ? "Alex"
-            : v === "UNSUBSCRIBE_LINK" ? "https://learn-with.me/newsletter/unsubscribe?token=demo"
+            : v === "FIRST_NAME" ? "Alex"
+            : v === "CURRENT_YEAR" ? String(new Date().getFullYear())
+            : v === "UNSUBSCRIBE_LINK" ? "https://learn-with.me/newsletter/unsubscribe?token=demo&lang=en"
             : v === "EMAIL_SIGNATURE" ? "<p>— Serbian AI Tutor</p>"
             : `Sample ${v.replace(/_/g, " ")}`;
         }
@@ -630,9 +722,22 @@ function CampaignEditorView({
   };
 
   const extraRecipientCount = testRecipients?.emails.length ?? 0;
-  const testSendTooltip = testRecipients?.adminEmail
-    ? `Sends the current ${lang.toUpperCase()} version to ${testRecipients.adminEmail} and ${extraRecipientCount} additional address${extraRecipientCount === 1 ? "" : "es"}.`
-    : `Sends the current ${lang.toUpperCase()} version to your admin email address for preview.`;
+  const maxAdditionalRecipients = testRecipients?.adminEmail ? 9 : 10;
+  const testRecipientList = useMemo(() => {
+    const admin = testRecipients?.adminEmail?.trim().toLowerCase() ?? "";
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const raw of admin ? [admin, ...(testRecipients?.emails ?? [])] : []) {
+      const email = raw.trim().toLowerCase();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      list.push(email);
+    }
+    return list;
+  }, [testRecipients]);
+  const testSendTooltip = testRecipientList.length > 0
+    ? `Sends the current ${lang.toUpperCase()} version to ${testRecipientList.join(", ")}. The campaign stays unsent.`
+    : "Add an admin email address before sending a test.";
 
   async function persistTestRecipients(emails: string[]): Promise<string[] | null> {
     setIsSavingRecipients(true);
@@ -688,9 +793,17 @@ function CampaignEditorView({
   }
 
   const handleSendTest = async () => {
+    if (testRecipientList.length === 0) {
+      toast.error("Admin account has no email address");
+      return;
+    }
     setIsSendingTest(true);
     try {
-      const res: NewsletterTestSendResult = await sendTestEmailAction({ campaignId, locale: lang });
+      const res: NewsletterTestSendResult = await sendTestEmailAction({
+        campaignId,
+        locale: lang,
+        testRecipients: testRecipientList,
+      });
       const subjectLine = `[TEST] ${lang === "en" ? subjectEn : (subjectDe || subjectEn)}`;
       if (res.sentTo.length === 0) {
         const detail = res.failed.map((f) => `${f.email}: ${f.error}`).join("; ");
@@ -708,20 +821,6 @@ function CampaignEditorView({
       toast.error(e instanceof Error ? e.message : "Test send failed");
     } finally {
       setIsSendingTest(false);
-    }
-  };
-
-  const handleSendCampaign = async () => {
-    if (!confirm(`Send campaign "${name}" to ALL matching subscribed contacts? This cannot be undone.`)) return;
-    setIsSendingCampaign(true);
-    try {
-      const result = await sendCampaignMutation({ campaignId });
-      toast.success(`Campaign scheduled: ${result.totalRecipients} recipients, ${result.batches} batches`);
-      onBack();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Send failed");
-    } finally {
-      setIsSendingCampaign(false);
     }
   };
 
@@ -810,7 +909,7 @@ function CampaignEditorView({
                   <DialogHeader>
                     <DialogTitle>Test recipients</DialogTitle>
                     <DialogDescription>
-                      Your admin address always receives the test email. Additional addresses are saved on your account (up to 10).
+                      Your admin address is always included. Additional addresses must be on NEWSLETTER_WHITELIST. At most 10 addresses in total.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -897,7 +996,7 @@ function CampaignEditorView({
                         onChange={(e) => setDraftRecipient(e.target.value)}
                         placeholder="name@example.com"
                         aria-label="Additional test email"
-                        disabled={isSavingRecipients || extraRecipientCount >= 10}
+                        disabled={isSavingRecipients || extraRecipientCount >= maxAdditionalRecipients}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -908,25 +1007,24 @@ function CampaignEditorView({
                       <Button
                         variant="outline"
                         onClick={() => void handleAddRecipient()}
-                        disabled={isSavingRecipients || extraRecipientCount >= 10 || !draftRecipient.trim()}
+                        disabled={isSavingRecipients || extraRecipientCount >= maxAdditionalRecipients || !draftRecipient.trim()}
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Add
                       </Button>
                     </div>
-                    {extraRecipientCount >= 10 && (
-                      <p className="text-sm text-muted-foreground">Limit of 10 additional addresses reached.</p>
+                    {extraRecipientCount >= maxAdditionalRecipients && (
+                      <p className="text-sm text-muted-foreground">Limit of 10 addresses in total reached.</p>
                     )}
                   </div>
                 </DialogContent>
               </Dialog>
-              {/* Test Send – admin address plus saved extra addresses */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="secondary"
-                    onClick={handleSendTest}
-                    disabled={isSendingTest}
+                    onClick={() => setIsTestConfirmOpen(true)}
+                    disabled={isSendingTest || testRecipientList.length === 0}
                   >
                     <Send className="h-4 w-4 mr-2" />
                     {isSendingTest ? "Sending test…" : "Send Test Email"}
@@ -936,42 +1034,67 @@ function CampaignEditorView({
                   {testSendTooltip}
                 </TooltipContent>
               </Tooltip>
-              {/* Real send – only enabled when status is "ready" */}
-              {campaign.status === "ready" && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="default"
-                      onClick={handleSendCampaign}
-                      disabled={isSendingCampaign}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      {isSendingCampaign ? "Sending…" : "Send Campaign"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Sends to all matching subscribed contacts. Campaign must be in status "ready".
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {editable && campaign.status !== "ready" && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="default" disabled className="opacity-50">
-                      <Send className="h-4 w-4 mr-2" />
-                      Send Campaign
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Set Workflow Status to "ready" to enable sending.
-                  </TooltipContent>
-                </Tooltip>
-              )}
             </div>
           </div>
         </div>
       </header>
+
+      {editable && (
+        <div className="border-b border-destructive/40 bg-destructive/5">
+          <div className="container py-4 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-medium text-destructive">Send campaign</p>
+              <p className="text-sm text-muted-foreground">
+                Sends to every matching subscribed contact and marks the campaign as sent. This cannot be undone.
+              </p>
+              {campaign.status !== "ready" && (
+                <p className="text-sm text-muted-foreground">Set Workflow Status to &quot;ready&quot; to enable sending.</p>
+              )}
+            </div>
+            {campaign.status === "ready" ? (
+              <Button variant="destructive" onClick={() => setIsSendDialogOpen(true)}>
+                <Send className="h-4 w-4 mr-2" />
+                Send campaign
+              </Button>
+            ) : (
+              <Button variant="destructive" disabled>
+                <Send className="h-4 w-4 mr-2" />
+                Send campaign
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <AlertDialog open={isTestConfirmOpen} onOpenChange={setIsTestConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Testversand</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`Testversand an ${testRecipientList.length} Adressen: ${testRecipientList.join(", ")}. Kampagne bleibt unversendet.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSendingTest}>Cancel</AlertDialogCancel>
+            <Button
+              disabled={isSendingTest || testRecipientList.length === 0}
+              onClick={() => {
+                setIsTestConfirmOpen(false);
+                void handleSendTest();
+              }}
+            >
+              {isSendingTest ? "Sending test…" : "Send test"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <CampaignSendDialog
+        campaign={campaign}
+        open={isSendDialogOpen}
+        onOpenChange={setIsSendDialogOpen}
+        onSent={onBack}
+      />
 
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onPickImage} />
 

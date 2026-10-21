@@ -6,7 +6,11 @@ export function getVariableDescription(variable: string): string {
     case "EMAIL_SIGNATURE":
       return "Inserts the category signature (transactional/subscription/marketing) at this position.";
     case "USER_NAME":
-      return "Recipient's display name.";
+      return "Recipient's display name. Empty when the contact has no name.";
+    case "FIRST_NAME":
+      return "Recipient's first name, or empty when the contact has no name. An empty value drops the space before it, so \"Hi {{FIRST_NAME}},\" becomes \"Hi,\".";
+    case "CURRENT_YEAR":
+      return "The calendar year at the moment the email is sent.";
     case "USER_EMAIL":
       return "Recipient's email address.";
     case "UNSUBSCRIBE_LINK":
@@ -45,4 +49,11 @@ export function getVariableDescription(variable: string): string {
   }
 }
 
-export const NEWSLETTER_CORE_VARIABLES = ["USER_NAME", "USER_EMAIL", "UNSUBSCRIBE_LINK", "EMAIL_SIGNATURE"] as const;
+export const NEWSLETTER_CORE_VARIABLES = [
+  "USER_NAME",
+  "FIRST_NAME",
+  "USER_EMAIL",
+  "UNSUBSCRIBE_LINK",
+  "EMAIL_SIGNATURE",
+  "CURRENT_YEAR",
+] as const;

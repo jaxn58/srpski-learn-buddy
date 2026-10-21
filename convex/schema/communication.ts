@@ -243,6 +243,9 @@ export const communicationTables = {
     clickedCount: v.number(), // Anzahl Klicks
     clickedLinks: v.array(v.string()), // Array von geklickten URLs
 
+    /** Test sends are logged for real unsubscribe and tracking links, and are excluded from campaign counters. */
+    isTest: v.optional(v.boolean()),
+
     // Timestamps
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),

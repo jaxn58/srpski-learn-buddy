@@ -169,6 +169,13 @@ export function LandingSsg(props: {
           </div>
         </section>
       </main>
+      <footer className="w-full border-t">
+        <div className="container py-8">
+          <p className="text-center text-sm font-semibold text-muted-foreground">
+            {t("home.footer.copyright", { year: new Date().getFullYear() })}
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

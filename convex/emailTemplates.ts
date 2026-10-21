@@ -13,6 +13,53 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { callAiJson } from "./contentStudio/_shared";
 
+/** First word of a contact name, with the first letter capitalized. Empty when there is no name. */
+export function firstNameFromFullName(name: string | undefined | null): string {
+  const first = (name ?? "").trim().split(/\s+/)[0] ?? "";
+  if (!first) return "";
+  return first.charAt(0).toLocaleUpperCase() + first.slice(1);
+}
+
+/**
+ * CURRENT_YEAR is always present. FIRST_NAME is derived from USER_NAME when the caller omitted it.
+ * An explicit empty FIRST_NAME stays empty so the greeting can collapse to "Hi," / "Hallo,".
+ */
+export function withStandardEmailVariables(
+  vars: Record<string, string | number | undefined>,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    if (value !== undefined) next[key] = String(value);
+  }
+  if (!next.CURRENT_YEAR) {
+    next.CURRENT_YEAR = String(new Date().getFullYear());
+  }
+  if (next.FIRST_NAME === undefined) {
+    next.FIRST_NAME = firstNameFromFullName(next.USER_NAME);
+  }
+  return next;
+}
+
+/** Replace {{VARIABLE}} placeholders. An empty FIRST_NAME drops the preceding space so "Hi {{FIRST_NAME}}," becomes "Hi,". */
+export function applyTemplateVariables(
+  html: string,
+  subject: string,
+  vars: Record<string, string>,
+): { html: string; subject: string } {
+  let nextHtml = html;
+  let nextSubject = subject;
+  if (!vars.FIRST_NAME) {
+    nextHtml = nextHtml.replace(/ \{\{FIRST_NAME\}\}/g, "");
+    nextSubject = nextSubject.replace(/ \{\{FIRST_NAME\}\}/g, "");
+  }
+  for (const [key, value] of Object.entries(vars)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+    nextHtml = nextHtml.replace(regex, value);
+    nextSubject = nextSubject.replace(regex, value);
+  }
+  return { html: nextHtml, subject: nextSubject };
+}
+
 // Helper to get the current user and verify admin
 type AnyCtx = QueryCtx | MutationCtx | ActionCtx;
 type CtxWithDb = QueryCtx | MutationCtx;
@@ -415,17 +462,15 @@ export const render = query({
       de: template.subjectDe,
     });
 
-    // Replace all {{VARIABLE}} with values
-    for (const [key, value] of Object.entries(vars)) {
-      const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
-      const stringValue = String(value);
-      renderedHtml = renderedHtml.replace(regex, stringValue);
-      renderedSubject = renderedSubject.replace(regex, stringValue);
-    }
+    const personalized = applyTemplateVariables(
+      renderedHtml,
+      renderedSubject,
+      withStandardEmailVariables(vars),
+    );
 
     return {
-      subject: renderedSubject,
-      html: renderedHtml,
+      subject: personalized.subject,
+      html: personalized.html,
     };
   },
 });
