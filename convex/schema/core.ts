@@ -23,6 +23,8 @@ export const coreTables = {
     )),
     isActive: v.boolean(),
     isBetaTester: v.boolean(),
+    /** When true, this user receives newsletter sends while a campaign is in test mode. */
+    newsletterWhitelist: v.optional(v.boolean()),
     // Gamification fields
     totalXP: v.number(),
     level: v.number(),
@@ -65,8 +67,7 @@ export const coreTables = {
       v.literal("full")
     )),
 
-    // Extra addresses for newsletter "Send Test Email", stored per admin.
-    // The admin's own email is always included at send time and is not stored here.
+    // Unused. Kept so existing documents stay valid. Test recipients are users.newsletterWhitelist.
     newsletterTestEmails: v.optional(v.array(v.string())),
   })
     .index("by_clerk_id", ["clerkId"])

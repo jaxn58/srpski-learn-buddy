@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Users, UserPlus, Activity, ArrowUpDown, Copy, ExternalLink, ChevronRight, FlaskConical } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
@@ -35,6 +36,7 @@ export default function Admin() {
 
   const [sortField, setSortField] = useState<string>('_creationTime');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [whitelistOnly, setWhitelistOnly] = useState(false);
 
   const sortedUsers = useMemo(() => {
     if (!users) return [];
@@ -53,6 +55,14 @@ export default function Admin() {
       return 0;
     });
   }, [users, sortField, sortDirection]);
+
+  const whitelistCount = useMemo(
+    () => (users ?? []).filter((u: { newsletterWhitelist?: boolean }) => u.newsletterWhitelist === true).length,
+    [users],
+  );
+  const visibleUsers = whitelistOnly
+    ? sortedUsers.filter((u: { newsletterWhitelist?: boolean }) => u.newsletterWhitelist === true)
+    : sortedUsers;
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
@@ -183,11 +193,19 @@ export default function Admin() {
 
       {/* User Overview Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
             User Management
             <span className="text-sm font-normal text-muted-foreground">({stats24h?.totalUsers ?? 0} Total Users)</span>
           </CardTitle>
+          <Button
+            type="button"
+            variant={whitelistOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setWhitelistOnly((current) => !current)}
+          >
+            Whitelist ({whitelistCount})
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -223,7 +241,7 @@ export default function Admin() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedUsers.map((u: any) => (
+                {visibleUsers.map((u: any) => (
                   <TableRow key={u._id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -235,6 +253,9 @@ export default function Admin() {
                         </Avatar>
                         <div className="min-w-0">
                           <p className="font-medium truncate">{u.name || "N/A"}</p>
+                          {u.newsletterWhitelist === true && (
+                            <Badge variant="outline" className="mt-1">Whitelist</Badge>
+                          )}
                           {u.publicNickname && (
                             <p className="text-xs text-muted-foreground truncate">{u.publicNickname}</p>
                           )}

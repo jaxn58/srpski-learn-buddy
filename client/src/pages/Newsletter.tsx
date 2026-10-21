@@ -113,7 +113,9 @@ function CampaignSendDialog({
               ? "Counting recipients…"
               : preview.error
                 ? preview.error
-                : `This sends the campaign to ${preview.recipientCount} subscribed contact${preview.recipientCount === 1 ? "" : "s"}. This cannot be undone.`}
+                : campaign.testMode
+                  ? `Test mode is on. This sends only to ${preview.recipientCount} whitelist user${preview.recipientCount === 1 ? "" : "s"} and marks the campaign as sent.`
+                  : `This sends the campaign to ${preview.recipientCount} subscribed contact${preview.recipientCount === 1 ? "" : "s"}. This cannot be undone.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-2">
@@ -378,7 +380,7 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
                 <input type="checkbox" id="testMode" checked={newCampaign.testMode}
                   onChange={(e) => setNewCampaign({ ...newCampaign, testMode: e.target.checked })}
                   className="rounded" />
-                <Label htmlFor="testMode" className="cursor-pointer">Test Mode (send only to whitelist)</Label>
+                <Label htmlFor="testMode" className="cursor-pointer">Test Mode (send only to the newsletter whitelist)</Label>
               </div>
               <Button onClick={handleCreateCampaign} className="w-full">Create Campaign</Button>
             </div>
@@ -470,11 +472,6 @@ type EditorViewProps = {
   onBack: () => void;
 };
 
-type NewsletterTestRecipients = {
-  adminEmail: string | null;
-  emails: string[];
-};
-
 type NewsletterTestSendResult = {
   success: boolean;
   sentTo: string[];
@@ -496,12 +493,11 @@ function CampaignEditorView({
   const translateAction = useAction(api.newsletter.translateNewsletterCampaign);
   const sendTestEmailAction = useAction(api.newsletter.sendCampaignTestEmail);
   const generateUploadUrl = useMutation(api.newsletter.generateNewsletterImageUploadUrl);
-  const testRecipientsQuery = useQuery(api.newsletter.getMyNewsletterTestRecipients, {});
-  const testRecipients: NewsletterTestRecipients | undefined = testRecipientsQuery;
-  const updateTestRecipients = useMutation(api.newsletter.updateMyNewsletterTestRecipients);
+  const testAudience = useQuery(api.newsletter.getNewsletterTestAudience, {});
 
   const [name, setName] = useState(campaign.name);
   const [status, setStatus] = useState(campaign.status);
+  const [testMode, setTestMode] = useState(campaign.testMode);
   const [subjectEn, setSubjectEn] = useState(campaignSubjectEn(campaign));
   const [subjectDe, setSubjectDe] = useState((campaign.subjectDe ?? "").trim());
   const [descEn, setDescEn] = useState(campaign.description ?? "");
@@ -519,11 +515,6 @@ function CampaignEditorView({
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isTestConfirmOpen, setIsTestConfirmOpen] = useState(false);
-  const [isRecipientsOpen, setIsRecipientsOpen] = useState(false);
-  const [draftRecipient, setDraftRecipient] = useState("");
-  const [editingRecipientIndex, setEditingRecipientIndex] = useState<number | null>(null);
-  const [editingRecipientValue, setEditingRecipientValue] = useState("");
-  const [isSavingRecipients, setIsSavingRecipients] = useState(false);
 
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -534,6 +525,7 @@ function CampaignEditorView({
   useEffect(() => {
     setName(campaign.name);
     setStatus(campaign.status);
+    setTestMode(campaign.testMode);
     setSubjectEn(campaignSubjectEn(campaign));
     setSubjectDe((campaign.subjectDe ?? "").trim());
     setDescEn(campaign.description ?? "");
@@ -698,6 +690,7 @@ function CampaignEditorView({
         htmlBodySnapshotEn: htmlEn,
         htmlBodySnapshotDe: htmlDe || undefined,
         status: status as "draft" | "review" | "ready",
+        testMode,
       });
       toast.success("Campaign saved");
     } catch (e: unknown) {
@@ -721,76 +714,10 @@ function CampaignEditorView({
     }
   };
 
-  const extraRecipientCount = testRecipients?.emails.length ?? 0;
-  const maxAdditionalRecipients = testRecipients?.adminEmail ? 9 : 10;
-  const testRecipientList = useMemo(() => {
-    const admin = testRecipients?.adminEmail?.trim().toLowerCase() ?? "";
-    const seen = new Set<string>();
-    const list: string[] = [];
-    for (const raw of admin ? [admin, ...(testRecipients?.emails ?? [])] : []) {
-      const email = raw.trim().toLowerCase();
-      if (!email || seen.has(email)) continue;
-      seen.add(email);
-      list.push(email);
-    }
-    return list;
-  }, [testRecipients]);
+  const testRecipientList = testAudience?.emails ?? [];
   const testSendTooltip = testRecipientList.length > 0
     ? `Sends the current ${lang.toUpperCase()} version to ${testRecipientList.join(", ")}. The campaign stays unsent.`
-    : "Add an admin email address before sending a test.";
-
-  async function persistTestRecipients(emails: string[]): Promise<string[] | null> {
-    setIsSavingRecipients(true);
-    try {
-      const result = await updateTestRecipients({ emails });
-      return result.emails;
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Could not save test recipients");
-      return null;
-    } finally {
-      setIsSavingRecipients(false);
-    }
-  }
-
-  function resetRecipientEditor() {
-    setDraftRecipient("");
-    setEditingRecipientIndex(null);
-    setEditingRecipientValue("");
-  }
-
-  async function handleAddRecipient() {
-    const next = draftRecipient.trim().toLowerCase();
-    if (!next || isSavingRecipients) return;
-    const saved = await persistTestRecipients([...(testRecipients?.emails ?? []), next]);
-    if (saved === null) return;
-    setDraftRecipient("");
-    if (!saved.includes(next)) {
-      toast.error("That address is already included and was not added again.");
-    }
-  }
-
-  async function handleSaveEditedRecipient() {
-    if (editingRecipientIndex === null || isSavingRecipients) return;
-    const next = editingRecipientValue.trim().toLowerCase();
-    const emails = [...(testRecipients?.emails ?? [])];
-    emails[editingRecipientIndex] = next;
-    const saved = await persistTestRecipients(emails);
-    if (saved === null) return;
-    setEditingRecipientIndex(null);
-    setEditingRecipientValue("");
-    if (!saved.includes(next)) {
-      toast.error("That address is already included, so it was not kept as an additional recipient.");
-    }
-  }
-
-  async function handleDeleteRecipient(index: number) {
-    if (isSavingRecipients) return;
-    const emails = (testRecipients?.emails ?? []).filter((_, i) => i !== index);
-    const saved = await persistTestRecipients(emails);
-    if (saved === null) return;
-    setEditingRecipientIndex(null);
-    setEditingRecipientValue("");
-  }
+    : "Your admin account needs an email address before a test can be sent.";
 
   const handleSendTest = async () => {
     if (testRecipientList.length === 0) {
@@ -802,7 +729,6 @@ function CampaignEditorView({
       const res: NewsletterTestSendResult = await sendTestEmailAction({
         campaignId,
         locale: lang,
-        testRecipients: testRecipientList,
       });
       const subjectLine = `[TEST] ${lang === "en" ? subjectEn : (subjectDe || subjectEn)}`;
       if (res.sentTo.length === 0) {
@@ -892,133 +818,6 @@ function CampaignEditorView({
                   {isSaving ? "Saving…" : "Save Campaign"}
                 </Button>
               )}
-              <Dialog
-                open={isRecipientsOpen}
-                onOpenChange={(open) => {
-                  setIsRecipientsOpen(open);
-                  if (!open) resetRecipientEditor();
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Users className="h-4 w-4 mr-2" />
-                    Test recipients
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Test recipients</DialogTitle>
-                    <DialogDescription>
-                      Your admin address is always included. Additional addresses must be on NEWSLETTER_WHITELIST. At most 10 addresses in total.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                      <span className="text-sm truncate">
-                        {testRecipients?.adminEmail ?? "No admin email on this account"}
-                      </span>
-                      <Badge variant="outline">Always included</Badge>
-                    </div>
-                    <div className="space-y-2">
-                      {(testRecipients?.emails.length ?? 0) === 0 ? (
-                        <p className="text-sm text-muted-foreground">No additional addresses yet.</p>
-                      ) : (
-                        testRecipients?.emails.map((email, index) => (
-                          <div key={`${email}-${index}`} className="flex items-center gap-2">
-                            {editingRecipientIndex === index ? (
-                              <>
-                                <Input
-                                  className="flex-1"
-                                  value={editingRecipientValue}
-                                  onChange={(e) => setEditingRecipientValue(e.target.value)}
-                                  aria-label={`Edit ${email}`}
-                                  disabled={isSavingRecipients}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      void handleSaveEditedRecipient();
-                                    }
-                                  }}
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => void handleSaveEditedRecipient()}
-                                  disabled={isSavingRecipients || !editingRecipientValue.trim()}
-                                >
-                                  Save
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setEditingRecipientIndex(null);
-                                    setEditingRecipientValue("");
-                                  }}
-                                  disabled={isSavingRecipients}
-                                >
-                                  Cancel
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-sm truncate flex-1">{email}</span>
-                                <Button
-                                  size="icon-sm"
-                                  variant="ghost"
-                                  aria-label={`Edit ${email}`}
-                                  disabled={isSavingRecipients}
-                                  onClick={() => {
-                                    setEditingRecipientIndex(index);
-                                    setEditingRecipientValue(email);
-                                  }}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon-sm"
-                                  variant="ghost"
-                                  aria-label={`Delete ${email}`}
-                                  disabled={isSavingRecipients}
-                                  onClick={() => void handleDeleteRecipient(index)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        value={draftRecipient}
-                        onChange={(e) => setDraftRecipient(e.target.value)}
-                        placeholder="name@example.com"
-                        aria-label="Additional test email"
-                        disabled={isSavingRecipients || extraRecipientCount >= maxAdditionalRecipients}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            void handleAddRecipient();
-                          }
-                        }}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() => void handleAddRecipient()}
-                        disabled={isSavingRecipients || extraRecipientCount >= maxAdditionalRecipients || !draftRecipient.trim()}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add
-                      </Button>
-                    </div>
-                    {extraRecipientCount >= maxAdditionalRecipients && (
-                      <p className="text-sm text-muted-foreground">Limit of 10 addresses in total reached.</p>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1045,7 +844,9 @@ function CampaignEditorView({
             <div>
               <p className="font-medium text-destructive">Send campaign</p>
               <p className="text-sm text-muted-foreground">
-                Sends to every matching subscribed contact and marks the campaign as sent. This cannot be undone.
+                {campaign.testMode
+                  ? "Test mode is on. This sends only to users on the newsletter whitelist and marks the campaign as sent."
+                  : "Sends to every matching subscribed contact and marks the campaign as sent. This cannot be undone."}
               </p>
               {campaign.status !== "ready" && (
                 <p className="text-sm text-muted-foreground">Set Workflow Status to &quot;ready&quot; to enable sending.</p>
@@ -1136,6 +937,25 @@ function CampaignEditorView({
                         <SelectItem value="ready">ready (can send)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="editorTestMode"
+                    className="mt-1 rounded"
+                    checked={testMode}
+                    disabled={!editable}
+                    onChange={(e) => setTestMode(e.target.checked)}
+                  />
+                  <div>
+                    <Label htmlFor="editorTestMode" className={editable ? "cursor-pointer" : undefined}>
+                      Test Mode (send only to the newsletter whitelist)
+                    </Label>
+                    {testMode !== campaign.testMode && (
+                      <p className="text-sm text-muted-foreground">Save the campaign to apply this change.</p>
+                    )}
                   </div>
                 </div>
 

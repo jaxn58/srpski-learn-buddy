@@ -49,6 +49,7 @@ export default function AdminUserDetail({ userId }: Props) {
   const updateRoleMutation = useMutation(api.admin.updateUserRole);
   const toggleStatusMutation = useMutation(api.admin.toggleUserStatus);
   const toggleBetaTesterMutation = useMutation(api.admin.toggleBetaTester);
+  const setNewsletterWhitelistMutation = useMutation(api.admin.setNewsletterWhitelist);
   const setFeatureTierOverrideMutation = useMutation(api.admin.setFeatureTierOverride);
   const deleteUserAction = useAction(api.admin.deleteUser);
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
@@ -116,6 +117,17 @@ export default function AdminUserDetail({ userId }: Props) {
       toast.success(userDetail.isBetaTester ? 'Beta tester badge removed' : 'Beta tester badge added');
     } catch {
       toast.error('Failed to update beta tester status');
+    }
+  };
+
+  const handleToggleNewsletterWhitelist = async () => {
+    if (!userDetail) return;
+    const next = userDetail.newsletterWhitelist !== true;
+    try {
+      await setNewsletterWhitelistMutation({ userId: userId as any, newsletterWhitelist: next });
+      toast.success(next ? 'Added to the newsletter whitelist' : 'Removed from the newsletter whitelist');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update the newsletter whitelist');
     }
   };
 
@@ -535,6 +547,26 @@ export default function AdminUserDetail({ userId }: Props) {
                   </div>
                   <Button variant="outline" size="sm" onClick={requestToggleBetaTester}>
                     {userDetail.isBetaTester ? 'Remove Beta Badge' : 'Add Beta Badge'}
+                  </Button>
+                </div>
+
+                <div className="border-t" />
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Newsletter whitelist</p>
+                    <p className="text-xs text-muted-foreground">
+                      Currently: {userDetail.newsletterWhitelist === true ? 'Yes' : 'No'}.
+                      Test-mode campaigns send only to these users.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleToggleNewsletterWhitelist()}
+                    disabled={!userDetail.email?.trim() && userDetail.newsletterWhitelist !== true}
+                  >
+                    {userDetail.newsletterWhitelist === true ? 'Remove from whitelist' : 'Add to whitelist'}
                   </Button>
                 </div>
 

@@ -868,6 +868,26 @@ export const toggleBetaTester = mutation({
   },
 });
 
+/** Mark or clear a user on the newsletter test whitelist (admin only). */
+export const setNewsletterWhitelist = mutation({
+  args: {
+    userId: v.id("users"),
+    newsletterWhitelist: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const target = await ctx.db.get(args.userId);
+    if (!target) throw new Error("User not found");
+    if (args.newsletterWhitelist && !target.email?.trim()) {
+      throw new Error("This user has no email address and cannot be added to the newsletter whitelist.");
+    }
+
+    await ctx.db.patch(args.userId, { newsletterWhitelist: args.newsletterWhitelist });
+  },
+});
+
 // Set or clear a user's feature-tier override (superadmin only).
 // `featureTier: null` clears the override (user falls back to subscription /
 // beta resolution). Used to test the 4-package gating and for support/comps.
