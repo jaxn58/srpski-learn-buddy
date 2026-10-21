@@ -64,6 +64,10 @@ export const coreTables = {
       v.literal("basic"),
       v.literal("full")
     )),
+
+    // Extra addresses for newsletter "Send Test Email", stored per admin.
+    // The admin's own email is always included at send time and is not stored here.
+    newsletterTestEmails: v.optional(v.array(v.string())),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])

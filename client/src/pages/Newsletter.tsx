@@ -380,6 +380,17 @@ type EditorViewProps = {
   onBack: () => void;
 };
 
+type NewsletterTestRecipients = {
+  adminEmail: string | null;
+  emails: string[];
+};
+
+type NewsletterTestSendResult = {
+  success: boolean;
+  sentTo: string[];
+  failed: { email: string; error: string }[];
+};
+
 function CampaignEditorView({
   campaignId,
   fallbackCampaign,
@@ -396,6 +407,9 @@ function CampaignEditorView({
   const sendTestEmailAction = useAction(api.newsletter.sendCampaignTestEmail);
   const sendCampaignMutation = useMutation(api.newsletter.sendCampaign);
   const generateUploadUrl = useMutation(api.newsletter.generateNewsletterImageUploadUrl);
+  const testRecipientsQuery = useQuery(api.newsletter.getMyNewsletterTestRecipients, {});
+  const testRecipients: NewsletterTestRecipients | undefined = testRecipientsQuery;
+  const updateTestRecipients = useMutation(api.newsletter.updateMyNewsletterTestRecipients);
 
   const [name, setName] = useState(campaign.name);
   const [status, setStatus] = useState(campaign.status);
@@ -415,6 +429,11 @@ function CampaignEditorView({
   const [isUploading, setIsUploading] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isSendingCampaign, setIsSendingCampaign] = useState(false);
+  const [isRecipientsOpen, setIsRecipientsOpen] = useState(false);
+  const [draftRecipient, setDraftRecipient] = useState("");
+  const [editingRecipientIndex, setEditingRecipientIndex] = useState<number | null>(null);
+  const [editingRecipientValue, setEditingRecipientValue] = useState("");
+  const [isSavingRecipients, setIsSavingRecipients] = useState(false);
 
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -610,11 +629,81 @@ function CampaignEditorView({
     }
   };
 
+  const extraRecipientCount = testRecipients?.emails.length ?? 0;
+  const testSendTooltip = testRecipients?.adminEmail
+    ? `Sends the current ${lang.toUpperCase()} version to ${testRecipients.adminEmail} and ${extraRecipientCount} additional address${extraRecipientCount === 1 ? "" : "es"}.`
+    : `Sends the current ${lang.toUpperCase()} version to your admin email address for preview.`;
+
+  async function persistTestRecipients(emails: string[]): Promise<string[] | null> {
+    setIsSavingRecipients(true);
+    try {
+      const result = await updateTestRecipients({ emails });
+      return result.emails;
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not save test recipients");
+      return null;
+    } finally {
+      setIsSavingRecipients(false);
+    }
+  }
+
+  function resetRecipientEditor() {
+    setDraftRecipient("");
+    setEditingRecipientIndex(null);
+    setEditingRecipientValue("");
+  }
+
+  async function handleAddRecipient() {
+    const next = draftRecipient.trim().toLowerCase();
+    if (!next || isSavingRecipients) return;
+    const saved = await persistTestRecipients([...(testRecipients?.emails ?? []), next]);
+    if (saved === null) return;
+    setDraftRecipient("");
+    if (!saved.includes(next)) {
+      toast.error("That address is already included and was not added again.");
+    }
+  }
+
+  async function handleSaveEditedRecipient() {
+    if (editingRecipientIndex === null || isSavingRecipients) return;
+    const next = editingRecipientValue.trim().toLowerCase();
+    const emails = [...(testRecipients?.emails ?? [])];
+    emails[editingRecipientIndex] = next;
+    const saved = await persistTestRecipients(emails);
+    if (saved === null) return;
+    setEditingRecipientIndex(null);
+    setEditingRecipientValue("");
+    if (!saved.includes(next)) {
+      toast.error("That address is already included, so it was not kept as an additional recipient.");
+    }
+  }
+
+  async function handleDeleteRecipient(index: number) {
+    if (isSavingRecipients) return;
+    const emails = (testRecipients?.emails ?? []).filter((_, i) => i !== index);
+    const saved = await persistTestRecipients(emails);
+    if (saved === null) return;
+    setEditingRecipientIndex(null);
+    setEditingRecipientValue("");
+  }
+
   const handleSendTest = async () => {
     setIsSendingTest(true);
     try {
-      const res = await sendTestEmailAction({ campaignId, locale: lang });
-      toast.success(`Test email sent to ${res.sentTo}`, { description: `[TEST] ${lang === "en" ? subjectEn : (subjectDe || subjectEn)}` });
+      const res: NewsletterTestSendResult = await sendTestEmailAction({ campaignId, locale: lang });
+      const subjectLine = `[TEST] ${lang === "en" ? subjectEn : (subjectDe || subjectEn)}`;
+      if (res.sentTo.length === 0) {
+        const detail = res.failed.map((f) => `${f.email}: ${f.error}`).join("; ");
+        toast.error(detail || "Test send failed");
+        return;
+      }
+      if (res.failed.length > 0) {
+        toast.warning(`Test email sent to ${res.sentTo.join(", ")}`, {
+          description: `Failed: ${res.failed.map((f) => `${f.email} (${f.error})`).join("; ")}`,
+        });
+        return;
+      }
+      toast.success(`Test email sent to ${res.sentTo.join(", ")}`, { description: subjectLine });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Test send failed");
     } finally {
@@ -704,7 +793,134 @@ function CampaignEditorView({
                   {isSaving ? "Saving…" : "Save Campaign"}
                 </Button>
               )}
-              {/* Test Send – sends current language version to superadmin email */}
+              <Dialog
+                open={isRecipientsOpen}
+                onOpenChange={(open) => {
+                  setIsRecipientsOpen(open);
+                  if (!open) resetRecipientEditor();
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Users className="h-4 w-4 mr-2" />
+                    Test recipients
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Test recipients</DialogTitle>
+                    <DialogDescription>
+                      Your admin address always receives the test email. Additional addresses are saved on your account (up to 10).
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                      <span className="text-sm truncate">
+                        {testRecipients?.adminEmail ?? "No admin email on this account"}
+                      </span>
+                      <Badge variant="outline">Always included</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {(testRecipients?.emails.length ?? 0) === 0 ? (
+                        <p className="text-sm text-muted-foreground">No additional addresses yet.</p>
+                      ) : (
+                        testRecipients?.emails.map((email, index) => (
+                          <div key={`${email}-${index}`} className="flex items-center gap-2">
+                            {editingRecipientIndex === index ? (
+                              <>
+                                <Input
+                                  className="flex-1"
+                                  value={editingRecipientValue}
+                                  onChange={(e) => setEditingRecipientValue(e.target.value)}
+                                  aria-label={`Edit ${email}`}
+                                  disabled={isSavingRecipients}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      void handleSaveEditedRecipient();
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void handleSaveEditedRecipient()}
+                                  disabled={isSavingRecipients || !editingRecipientValue.trim()}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditingRecipientIndex(null);
+                                    setEditingRecipientValue("");
+                                  }}
+                                  disabled={isSavingRecipients}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-sm truncate flex-1">{email}</span>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  aria-label={`Edit ${email}`}
+                                  disabled={isSavingRecipients}
+                                  onClick={() => {
+                                    setEditingRecipientIndex(index);
+                                    setEditingRecipientValue(email);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  aria-label={`Delete ${email}`}
+                                  disabled={isSavingRecipients}
+                                  onClick={() => void handleDeleteRecipient(index)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={draftRecipient}
+                        onChange={(e) => setDraftRecipient(e.target.value)}
+                        placeholder="name@example.com"
+                        aria-label="Additional test email"
+                        disabled={isSavingRecipients || extraRecipientCount >= 10}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleAddRecipient();
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => void handleAddRecipient()}
+                        disabled={isSavingRecipients || extraRecipientCount >= 10 || !draftRecipient.trim()}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add
+                      </Button>
+                    </div>
+                    {extraRecipientCount >= 10 && (
+                      <p className="text-sm text-muted-foreground">Limit of 10 additional addresses reached.</p>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+              {/* Test Send – admin address plus saved extra addresses */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -717,7 +933,7 @@ function CampaignEditorView({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Sends the current {lang.toUpperCase()} version to your admin email address for preview.
+                  {testSendTooltip}
                 </TooltipContent>
               </Tooltip>
               {/* Real send – only enabled when status is "ready" */}

@@ -1293,8 +1293,89 @@ export const translateNewsletterCampaign = action({
   },
 });
 
+const MAX_NEWSLETTER_TEST_EMAILS = 10;
+const NEWSLETTER_TEST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Trim, lowercase, drop the admin's own address and duplicates. Reject invalid addresses. */
+function normalizeNewsletterTestEmails(
+  emails: string[],
+  adminEmail: string | undefined,
+): string[] {
+  const adminKey = adminEmail?.trim().toLowerCase() ?? "";
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const raw of emails) {
+    const email = raw.trim().toLowerCase();
+    if (!email || !NEWSLETTER_TEST_EMAIL_RE.test(email)) {
+      throw new Error(`Invalid email address: ${raw.trim() || "(empty)"}`);
+    }
+    if (email === adminKey || seen.has(email)) continue;
+    seen.add(email);
+    result.push(email);
+  }
+
+  if (result.length > MAX_NEWSLETTER_TEST_EMAILS) {
+    throw new Error(`At most ${MAX_NEWSLETTER_TEST_EMAILS} additional test addresses`);
+  }
+  return result;
+}
+
+function applyNewsletterTemplateVars(
+  html: string,
+  subject: string,
+  vars: Record<string, string>,
+): { html: string; subject: string } {
+  let nextHtml = html;
+  let nextSubject = subject;
+  for (const [key, value] of Object.entries(vars)) {
+    const re = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+    nextHtml = nextHtml.replace(re, value);
+    nextSubject = nextSubject.replace(re, value);
+  }
+  return { html: nextHtml, subject: nextSubject };
+}
+
 /**
- * Send a test preview of a campaign to the calling superadmin's email.
+ * Admin's own address (always a test recipient) plus saved extra addresses.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const getMyNewsletterTestRecipients = query({
+  args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+    return {
+      adminEmail: admin.email ?? null,
+      emails: admin.newsletterTestEmails ?? [],
+    };
+  },
+});
+
+/**
+ * Replace the calling admin's extra test-mail addresses.
+ * The admin's own email is not stored; it is always added at send time.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const updateMyNewsletterTestRecipients = mutation({
+  args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    emails: v.array(v.string()),
+  },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+
+    const emails = normalizeNewsletterTestEmails(args.emails, admin.email);
+    await ctx.db.patch(admin._id, { newsletterTestEmails: emails });
+    return { emails };
+  },
+});
+
+/**
+ * Send a test preview of a campaign to the calling admin and their saved extra addresses.
  * Does NOT affect campaign status or create email logs.
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
@@ -1307,7 +1388,11 @@ export const sendCampaignTestEmail = action({
     locale: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-  handler: async (ctx, args): Promise<{ success: boolean; sentTo: string }> => {
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    sentTo: string[];
+    failed: { email: string; error: string }[];
+  }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthorized");
 
@@ -1318,8 +1403,17 @@ export const sendCampaignTestEmail = action({
       throw new Error("Unauthorized – Admin access required");
     }
 
-    const toEmail = adminUser.email;
-    if (!toEmail) throw new Error("Admin account has no email address");
+    const adminEmail = adminUser.email?.trim();
+    if (!adminEmail) throw new Error("Admin account has no email address");
+
+    const seen = new Set<string>([adminEmail.toLowerCase()]);
+    const recipients = [adminEmail];
+    for (const extra of adminUser.newsletterTestEmails ?? []) {
+      const normalized = extra.trim().toLowerCase();
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      recipients.push(normalized);
+    }
 
     const campaign = (await ctx.runQuery(internal.newsletter.internalGetCampaign, {
       campaignId: args.campaignId,
@@ -1352,32 +1446,46 @@ export const sendCampaignTestEmail = action({
     }
 
     const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
-    const testVars: Record<string, string> = {
+    const shared = applyNewsletterTemplateVars(html, subject, {
       USER_NAME: adminUser.name || "Admin",
-      USER_EMAIL: toEmail,
       UNSUBSCRIBE_LINK: `${baseUrl}/newsletter/unsubscribe?token=TEST-TOKEN`,
-    };
-    for (const [key, value] of Object.entries(testVars)) {
-      const re = new RegExp(`\\{\\{${key}\\}\\}`, "g");
-      html = html.replace(re, value);
-      subject = subject.replace(re, value);
-    }
+    });
 
     if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY not configured");
     const resend = new Resend(process.env.RESEND_API_KEY);
     const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
 
-    const { error } = await resend.emails.send({
-      from: `Serbian AI Tutor <${FROM_EMAIL}>`,
-      to: toEmail,
-      subject: `[TEST] ${subject}`,
-      html,
-    });
+    const sentTo: string[] = [];
+    const failed: { email: string; error: string }[] = [];
 
-    if (error) throw new Error(`Resend error: ${error.message || JSON.stringify(error)}`);
+    for (const recipient of recipients) {
+      const personalized = applyNewsletterTemplateVars(shared.html, shared.subject, {
+        USER_EMAIL: recipient,
+      });
+      try {
+        const { error } = await resend.emails.send({
+          from: `Serbian AI Tutor <${FROM_EMAIL}>`,
+          to: recipient,
+          subject: `[TEST] ${personalized.subject}`,
+          html: personalized.html,
+        });
+        if (error) {
+          failed.push({ email: recipient, error: error.message || "Resend error" });
+        } else {
+          sentTo.push(recipient);
+        }
+      } catch (e: unknown) {
+        failed.push({
+          email: recipient,
+          error: e instanceof Error ? e.message : "Send failed",
+        });
+      }
+    }
 
-    console.log(`[Newsletter] Test email sent to ${toEmail} for campaign "${campaign.name}"`);
-    return { success: true, sentTo: toEmail };
+    console.log(
+      `[Newsletter] Test email for campaign "${campaign.name}": sent ${sentTo.length}, failed ${failed.length}`,
+    );
+    return { success: sentTo.length > 0, sentTo, failed };
   },
 });
 
