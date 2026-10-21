@@ -1966,6 +1966,25 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     systemPrompt += COMPACT_RESPONSE_GUIDANCE;
   }
 
+  const hasReadableAttachment = !!(attachmentUrl || attachmentInlineText);
+  if (!hasReadableAttachment) {
+    systemPrompt += body.attachmentStorageId
+      ? "\n\nATTACHMENT STATUS FOR THIS MESSAGE:\n" +
+        "A file was attached to the current user message, but its contents could not be read. " +
+        "Say clearly that the file could not be read and ask the user to attach it again. " +
+        "Do not invent, quote, or summarize document contents. " +
+        "Course unit context and Knowledge Rack passages are not a substitute for this unreadable attachment; " +
+        "do not present them as the file the user just attached."
+      : "\n\nATTACHMENT STATUS FOR THIS MESSAGE:\n" +
+        "No file was attached to the current user message. " +
+        "If the user asks about a file, photo, PDF, invoice, letter, or document they believe they just sent, " +
+        "say clearly that no file arrived and ask them to attach it again. " +
+        "Do not invent, quote, or summarize the contents of a file that is not in this message. " +
+        "Course unit context and Knowledge Rack passages are not the file the user just attached; " +
+        "do not present them as that document. " +
+        "You may still use those sources when the user asks about the course or about documents already in their Knowledge Rack.";
+  }
+
   type AiContentPart =
     | { type: "text"; text: string }
     | { type: "image"; image: URL; mediaType: string }

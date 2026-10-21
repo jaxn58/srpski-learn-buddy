@@ -86,6 +86,21 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachPreviewUrlRef = useRef<string | null>(null);
+  const attachedFileRef = useRef<{
+    storageId: string;
+    fileName: string;
+    fileType: string;
+    fileBytes: number;
+    previewUrl?: string;
+  } | null>(null);
+  const uploadPromiseRef = useRef<Promise<{
+    storageId: string;
+    fileName: string;
+    fileType: string;
+    fileBytes: number;
+    previewUrl?: string;
+  } | null> | null>(null);
+  const sendGuardRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const prefillHandledRef = useRef(false);
   const skipAutoSelectRef = useRef(false);
@@ -164,6 +179,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       URL.revokeObjectURL(attachPreviewUrlRef.current);
       attachPreviewUrlRef.current = null;
     }
+    attachedFileRef.current = null;
     setAttachedFile(null);
   }, []);
 
@@ -570,57 +586,94 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       return;
     }
 
+    const uploadPromise = (async () => {
+      try {
+        const isImage = file.type.startsWith("image/");
+        let uploadBody: Blob = file;
+        let uploadType = file.type || "application/octet-stream";
+
+        if (isImage) {
+          uploadBody = await compressImage(file);
+          uploadType = "image/jpeg";
+        }
+
+        // Pre-flight: report intended bytes/type so the backend can enforce the
+        // upload cap and AI-Energy budget BEFORE we transfer the file.
+        const intendedBytes = uploadBody.size;
+        const uploadUrl = await generateUploadUrl({
+          fileBytes: intendedBytes,
+          fileType: uploadType,
+          uploadSource: "chat_attachment",
+        });
+        const resp = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": uploadType },
+          body: uploadBody,
+        });
+        if (!resp.ok) throw new Error("Upload failed");
+        const { storageId } = await resp.json();
+        let previewUrl: string | undefined;
+        if (isImage) {
+          if (attachPreviewUrlRef.current) {
+            URL.revokeObjectURL(attachPreviewUrlRef.current);
+          }
+          previewUrl = URL.createObjectURL(uploadBody);
+          attachPreviewUrlRef.current = previewUrl;
+        }
+        const attachment = {
+          storageId,
+          fileName: file.name,
+          fileType: uploadType,
+          fileBytes: intendedBytes,
+          previewUrl,
+        };
+        attachedFileRef.current = attachment;
+        setAttachedFile(attachment);
+        return attachment;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Upload failed");
+        return null;
+      }
+    })();
+
+    uploadPromiseRef.current = uploadPromise;
     setIsUploading(true);
     try {
-      const isImage = file.type.startsWith("image/");
-      let uploadBody: Blob = file;
-      let uploadType = file.type || "application/octet-stream";
-
-      if (isImage) {
-        uploadBody = await compressImage(file);
-        uploadType = "image/jpeg";
-      }
-
-      // Pre-flight: report intended bytes/type so the backend can enforce the
-      // upload cap and AI-Energy budget BEFORE we transfer the file.
-      const intendedBytes = uploadBody.size;
-      const uploadUrl = await generateUploadUrl({
-        fileBytes: intendedBytes,
-        fileType: uploadType,
-        uploadSource: "chat_attachment",
-      });
-      const resp = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": uploadType },
-        body: uploadBody,
-      });
-      if (!resp.ok) throw new Error("Upload failed");
-      const { storageId } = await resp.json();
-      let previewUrl: string | undefined;
-      if (isImage) {
-        if (attachPreviewUrlRef.current) {
-          URL.revokeObjectURL(attachPreviewUrlRef.current);
-        }
-        previewUrl = URL.createObjectURL(uploadBody);
-        attachPreviewUrlRef.current = previewUrl;
-      }
-      setAttachedFile({
-        storageId,
-        fileName: file.name,
-        fileType: uploadType,
-        fileBytes: intendedBytes,
-        previewUrl,
-      });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      await uploadPromise;
     } finally {
+      if (uploadPromiseRef.current === uploadPromise) uploadPromiseRef.current = null;
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const handleSend = async () => {
-    if ((!message.trim() && !attachedFile) || isSending) return;
+    if (isSending || sendGuardRef.current) return;
+
+    const messageToSend = message;
+    const pendingUpload = uploadPromiseRef.current;
+    if (!messageToSend.trim() && !attachedFileRef.current && !pendingUpload) return;
+
+    let uploaded: Awaited<typeof pendingUpload> = null;
+    if (pendingUpload) {
+      sendGuardRef.current = true;
+      setIsSending(true);
+      try {
+        uploaded = await pendingUpload;
+      } finally {
+        sendGuardRef.current = false;
+      }
+      if (!uploaded) {
+        setIsSending(false);
+        return;
+      }
+    }
+
+    const currentAttachment = uploaded ?? attachedFileRef.current;
+    if (!messageToSend.trim() && !currentAttachment) {
+      setIsSending(false);
+      return;
+    }
 
     let sessionIdToUse = currentSessionId;
     if (!sessionIdToUse) {
@@ -630,12 +683,11 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       } catch (error) {
         console.error("Failed to create session:", error);
         toast.error(t('chat.newChatError'));
+        setIsSending(false);
         return;
       }
     }
 
-    const messageToSend = message;
-    const currentAttachment = attachedFile;
     setMessage("");
     clearAttachedFile();
     await sendStreaming(messageToSend, sessionIdToUse, responseMode, currentAttachment);
