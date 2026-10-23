@@ -28,7 +28,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
-import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
+import { ChatAttachmentPreview, ChatPendingAttachment, ChatUploadChip, uploadToConvexStorage } from "@/components/chat/ChatAttachmentPreview";
+import { resolveActiveChatSession } from "@/lib/activeChatSession";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
 import {
@@ -78,13 +79,14 @@ export default function Chat() {
     fileBytes: number;
     previewUrl?: string;
   } | null>(null);
-  const uploadPromiseRef = useRef<Promise<{
-    storageId: string;
+  const pinnedSessionIdRef = useRef<string | null>(null);
+  const uploadGenerationRef = useRef(0);
+  const uploadFileRef = useRef<File | null>(null);
+  const [uploadChip, setUploadChip] = useState<{
     fileName: string;
-    fileType: string;
-    fileBytes: number;
-    previewUrl?: string;
-  } | null> | null>(null);
+    progress: number;
+    failed: boolean;
+  } | null>(null);
   const sendGuardRef = useRef(false);
   const isMobile = useIsMobile();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
@@ -178,14 +180,17 @@ export default function Chat() {
     setAttachedFile(null);
   }, []);
 
-  const createNewSession = async (options?: { showSuccessToast?: boolean }): Promise<string | null> => {
+  const createNewSession = async (options?: { showSuccessToast?: boolean; keepResponseMode?: boolean }): Promise<string | null> => {
     if (isCreatingSession) return null;
     setIsCreatingSession(true);
     try {
       const sessionId = await createSessionMutation({ title: t('chat.newChat') });
       const sessionIdStr = sessionId as unknown as string;
+      pinnedSessionIdRef.current = sessionIdStr;
       setCurrentSessionId(sessionIdStr);
-      setResponseMode("compact");
+      if (!options?.keepResponseMode) {
+        setResponseMode("compact");
+      }
       if (options?.showSuccessToast) {
         toast.success(t('chat.newChatSuccess'));
       }
@@ -227,6 +232,7 @@ export default function Chat() {
   };
 
   // Deep-link from Chat Library: ?session= opens that chat.
+  // A freshly created session stays selected until the list includes it.
   // Otherwise select the latest session when none is active or the current one was removed.
   useEffect(() => {
     if (!sessions) return;
@@ -235,26 +241,21 @@ export default function Chat() {
     if (sessionParam) {
       const exists = sessions.some((s) => (s._id as unknown as string) === sessionParam);
       if (exists) {
+        pinnedSessionIdRef.current = null;
         setCurrentSessionId(sessionParam);
         return;
       }
       toast.error(t("chatSessions.toast.notFound", "Chat not found"));
     }
 
-    const hasCurrent =
-      currentSessionId &&
-      sessions.some((s) => (s._id as unknown as string) === currentSessionId);
-
-    if (sessions.length === 0) {
-      if (currentSessionId) {
-        setCurrentSessionId(null);
-      }
-      return;
-    }
-
-    if (!hasCurrent) {
-      const latestSessionId = sessions[0]._id as unknown as string;
-      setCurrentSessionId(latestSessionId);
+    const resolved = resolveActiveChatSession({
+      sessionIds: sessions.map((s) => s._id as unknown as string),
+      currentSessionId,
+      pinnedSessionId: pinnedSessionIdRef.current,
+    });
+    pinnedSessionIdRef.current = resolved.pinnedSessionId;
+    if (resolved.sessionId !== currentSessionId) {
+      setCurrentSessionId(resolved.sessionId);
     }
   }, [sessions, currentSessionId, consumeSearchParam, t]);
 
@@ -340,8 +341,8 @@ export default function Chat() {
   };
 
   const handleSelectSession = async (sessionId: string | null) => {
+    pinnedSessionIdRef.current = null;
     setCurrentSessionId(sessionId);
-    // Messages will be loaded automatically via useQuery
   };
 
   const handleStopStreaming = useCallback(() => {
@@ -391,7 +392,76 @@ export default function Chat() {
     });
   }, []);
 
-  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const clearUploadChip = useCallback(() => {
+    uploadGenerationRef.current += 1;
+    uploadFileRef.current = null;
+    setUploadChip(null);
+    setIsUploading(false);
+  }, []);
+
+  const beginUpload = useCallback(async (file: File) => {
+    const generation = ++uploadGenerationRef.current;
+    uploadFileRef.current = file;
+    setUploadChip({ fileName: file.name, progress: 0, failed: false });
+    setIsUploading(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    const stillCurrent = () => uploadGenerationRef.current === generation;
+
+    try {
+      const isImage = file.type.startsWith("image/");
+      let uploadBody: Blob = file;
+      let uploadType = file.type || "application/octet-stream";
+
+      if (isImage) {
+        uploadBody = await compressImage(file);
+        uploadType = "image/jpeg";
+      }
+      if (!stillCurrent()) return;
+
+      const intendedBytes = uploadBody.size;
+      const uploadUrl = await generateUploadUrl({
+        fileBytes: intendedBytes,
+        fileType: uploadType,
+        uploadSource: "chat_attachment",
+      });
+      if (!stillCurrent()) return;
+
+      const storageId = await uploadToConvexStorage(uploadUrl, uploadBody, uploadType, (percent) => {
+        if (!stillCurrent()) return;
+        setUploadChip((current) =>
+          current && !current.failed ? { ...current, progress: percent } : current,
+        );
+      });
+      if (!stillCurrent()) return;
+
+      let previewUrl: string | undefined;
+      if (isImage) {
+        if (attachPreviewUrlRef.current) {
+          URL.revokeObjectURL(attachPreviewUrlRef.current);
+        }
+        previewUrl = URL.createObjectURL(uploadBody);
+        attachPreviewUrlRef.current = previewUrl;
+      }
+      const attachment = {
+        storageId,
+        fileName: file.name,
+        fileType: uploadType,
+        fileBytes: intendedBytes,
+        previewUrl,
+      };
+      attachedFileRef.current = attachment;
+      setAttachedFile(attachment);
+      uploadFileRef.current = null;
+      setUploadChip(null);
+    } catch {
+      if (!stillCurrent()) return;
+      setUploadChip({ fileName: file.name, progress: 0, failed: true });
+    } finally {
+      if (stillCurrent()) setIsUploading(false);
+    }
+  }, [compressImage, generateUploadUrl]);
+
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -415,105 +485,43 @@ export default function Chat() {
       return;
     }
 
-    const uploadPromise = (async () => {
-      try {
-        const isImage = file.type.startsWith("image/");
-        let uploadBody: Blob = file;
-        let uploadType = file.type || "application/octet-stream";
+    void beginUpload(file);
+  };
 
-        if (isImage) {
-          uploadBody = await compressImage(file);
-          uploadType = "image/jpeg";
-        }
-
-        // Pre-flight: report intended bytes/type so the backend can enforce the
-        // upload cap and AI-Energy budget BEFORE we transfer the file.
-        const intendedBytes = uploadBody.size;
-        const uploadUrl = await generateUploadUrl({
-          fileBytes: intendedBytes,
-          fileType: uploadType,
-          uploadSource: "chat_attachment",
-        });
-        const resp = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": uploadType },
-          body: uploadBody,
-        });
-        if (!resp.ok) throw new Error("Upload failed");
-        const { storageId } = await resp.json();
-        let previewUrl: string | undefined;
-        if (isImage) {
-          if (attachPreviewUrlRef.current) {
-            URL.revokeObjectURL(attachPreviewUrlRef.current);
-          }
-          previewUrl = URL.createObjectURL(uploadBody);
-          attachPreviewUrlRef.current = previewUrl;
-        }
-        const attachment = {
-          storageId,
-          fileName: file.name,
-          fileType: uploadType,
-          fileBytes: intendedBytes,
-          previewUrl,
-        };
-        attachedFileRef.current = attachment;
-        setAttachedFile(attachment);
-        return attachment;
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Upload failed");
-        return null;
-      }
-    })();
-
-    uploadPromiseRef.current = uploadPromise;
-    setIsUploading(true);
-    try {
-      await uploadPromise;
-    } finally {
-      if (uploadPromiseRef.current === uploadPromise) uploadPromiseRef.current = null;
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+  const retryUpload = () => {
+    const file = uploadFileRef.current;
+    if (!file || isUploading) return;
+    void beginUpload(file);
   };
 
   const handleSend = async () => {
-    if (isSending || sendGuardRef.current || !currentSessionId) return;
+    if (isSending || sendGuardRef.current || isUploading) return;
 
     const messageToSend = message;
-    const pendingUpload = uploadPromiseRef.current;
-    if (!messageToSend.trim() && !attachedFileRef.current && !pendingUpload) return;
+    const currentAttachment = attachedFileRef.current;
+    if (!messageToSend.trim() && !currentAttachment) return;
 
-    let uploaded: Awaited<typeof pendingUpload> = null;
-    if (pendingUpload) {
-      sendGuardRef.current = true;
-      setIsSending(true);
-      try {
-        uploaded = await pendingUpload;
-      } finally {
-        sendGuardRef.current = false;
-      }
-      if (!uploaded) {
-        setIsSending(false);
-        return;
-      }
-    }
-
-    const currentAttachment = uploaded ?? attachedFileRef.current;
-    if (!messageToSend.trim() && !currentAttachment) {
-      setIsSending(false);
-      return;
-    }
-
-    setMessage("");
-    clearAttachedFile();
+    sendGuardRef.current = true;
     setIsSending(true);
 
     try {
+      let sessionIdToUse = currentSessionId;
+      let createdNow = false;
+      if (!sessionIdToUse) {
+        const created = await createNewSession({ keepResponseMode: true });
+        if (!created) {
+          setIsSending(false);
+          return;
+        }
+        sessionIdToUse = created;
+        createdNow = true;
+      }
+
       const hasImage = !!currentAttachment && currentAttachment.fileType.startsWith("image/");
       const hasFile = !!currentAttachment && !hasImage;
 
       await checkRateLimitMutation({
-        sessionId: currentSessionId as Id<"chatSessions">,
+        sessionId: sessionIdToUse as Id<"chatSessions">,
         message: messageToSend,
         responseMode,
         hasImageAttachment: hasImage,
@@ -523,28 +531,29 @@ export default function Chat() {
       });
 
       await addMessageMutation({
-        sessionId: currentSessionId as Id<"chatSessions">,
+        sessionId: sessionIdToUse as Id<"chatSessions">,
         role: "user",
         content: messageToSend || (currentAttachment ? `[Attached: ${currentAttachment.fileName}]` : ""),
         unitContext: progress?.currentUnit,
         responseMode,
         ...(currentAttachment ? {
-          attachmentStorageId: currentAttachment.storageId,
+          attachmentStorageId: currentAttachment.storageId as Id<"_storage">,
           attachmentFileName: currentAttachment.fileName,
           attachmentMimeType: currentAttachment.fileType,
           attachmentSizeBytes: currentAttachment.fileBytes,
         } : {}),
       });
 
-      const meData = await new Promise<Doc<"users"> | null>((resolve) => {
-        resolve(user as Doc<"users"> | null);
-      });
+      setMessage("");
+      clearAttachedFile();
+
+      const meData = user as Doc<"users"> | null;
       if (!meData) throw new Error("Not authenticated");
 
       const streamId = await createStreamMutation({});
 
       const messageId = await addStreamingAssistantMsg({
-        sessionId: currentSessionId as Id<"chatSessions">,
+        sessionId: sessionIdToUse as Id<"chatSessions">,
         userId: meData._id,
         streamId: streamId as string,
       });
@@ -555,8 +564,6 @@ export default function Chat() {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      // Send the Convex-issued Clerk JWT so the streaming endpoint can
-      // authenticate the caller (it no longer trusts userId from the body).
       const streamToken = await getToken({ template: "convex" });
 
       fetch(`${CONVEX_SITE_URL}/chat/stream`, {
@@ -567,7 +574,7 @@ export default function Chat() {
         },
         body: JSON.stringify({
           streamId,
-          sessionId: currentSessionId,
+          sessionId: sessionIdToUse,
           messageId,
           responseMode,
           ...(currentAttachment ? {
@@ -596,14 +603,16 @@ export default function Chat() {
         }
       });
 
-      // Auto-rename session title
       const sessionForTitle = sessions?.find(
-        (s) => (s._id as unknown as string) === currentSessionId
+        (s) => (s._id as unknown as string) === sessionIdToUse
       );
-      if (sessionForTitle?.title === t('chat.newChat') && (messages?.length ?? 0) <= 1) {
+      if (
+        messageToSend.trim() &&
+        (createdNow || (sessionForTitle?.title === t('chat.newChat') && (messages?.length ?? 0) <= 1))
+      ) {
         const title = messageToSend.slice(0, 20) + (messageToSend.length > 20 ? "..." : "");
         updateSessionMutation({
-          sessionId: currentSessionId as Id<"chatSessions">,
+          sessionId: sessionIdToUse as Id<"chatSessions">,
           title,
         }).catch(() => {});
       }
@@ -629,12 +638,15 @@ export default function Chat() {
         toast.error(errorMessage);
       }
       setIsSending(false);
+    } finally {
+      sendGuardRef.current = false;
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (isUploading) return;
       handleSend();
     }
   };
@@ -933,8 +945,17 @@ export default function Chat() {
 
           {/* Input Area */}
           <div className="p-3 sm:p-4 bg-muted/20 rounded-none sm:rounded-b-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            {(attachedFile || searchScope !== "both") && (
+            {(attachedFile || uploadChip || searchScope !== "both") && (
               <div className="flex items-center gap-2 px-2 pb-2 flex-wrap">
+                {uploadChip && !attachedFile && (
+                  <ChatUploadChip
+                    fileName={uploadChip.fileName}
+                    progress={uploadChip.progress}
+                    failed={uploadChip.failed}
+                    onRetry={retryUpload}
+                    onRemove={clearUploadChip}
+                  />
+                )}
                 {attachedFile && (
                 <>
                 <ChatPendingAttachment
@@ -976,7 +997,7 @@ export default function Chat() {
                 <ChatResponseModeToggle
                   value={responseMode}
                   onChange={setResponseMode}
-                  disabled={isSending || !currentSessionId}
+                  disabled={isSending}
                 />
                 <EnergyPill className="shrink-0" />
                 {hasReadyDocuments && (
@@ -995,7 +1016,7 @@ export default function Chat() {
                   <TooltipTrigger asChild>
                     <Button
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading || isSending || !currentSessionId || !!attachedFile}
+                      disabled={isUploading || isSending || !!attachedFile || !!uploadChip}
                       size="icon"
                       variant="ghost"
                       className="rounded-full h-10 w-10 shrink-0"
@@ -1072,13 +1093,9 @@ export default function Chat() {
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   onFocus={handleInputFocus}
-                  placeholder={
-                    currentSessionId
-                      ? t('chat.placeholder')
-                      : t('chat.noSessionPlaceholder', 'Please start a new chat first')
-                  }
+                  placeholder={t('chat.placeholder')}
                   className="flex-1 min-w-0 rounded-full h-11 sm:h-9"
-                  disabled={isSending || !currentSessionId}
+                  disabled={isSending}
                 />
                 {activeStreamId ? (
                   <Button
@@ -1093,10 +1110,12 @@ export default function Chat() {
                 ) : (
                   <Button
                     onClick={handleSend}
-                    disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || energyBlocksSend}
+                    disabled={(!message.trim() && !attachedFile) || isSending || isUploading || energyBlocksSend}
                     size="icon"
                     className="rounded-full h-11 w-11 sm:h-10 sm:w-10 shrink-0 sm:order-3"
-                    title={energyBlocksSend
+                    title={isUploading
+                      ? t('chat.upload.wait')
+                      : energyBlocksSend
                       ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
                         ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
                         : t('chat.energy.notEnough', {

@@ -185,3 +185,89 @@ export function ChatPendingAttachment({
     </div>
   );
 }
+
+type ChatUploadChipProps = {
+  fileName: string;
+  progress: number;
+  failed: boolean;
+  onRetry: () => void;
+  onRemove: () => void;
+};
+
+/** Filename and percent while a chat attachment is uploading, or a retry control. */
+export function ChatUploadChip({
+  fileName,
+  progress,
+  failed,
+  onRetry,
+  onRemove,
+}: ChatUploadChipProps) {
+  const { t } = useTranslation();
+  const percent = Math.max(0, Math.min(100, Math.round(progress)));
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+      <FileText className="h-3 w-3 shrink-0" />
+      {failed ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex min-h-[44px] max-w-[220px] items-center truncate text-left underline-offset-2 hover:underline"
+        >
+          {t("chat.upload.failedRetry", "Upload failed – retry")}
+        </button>
+      ) : (
+        <>
+          <span className="truncate max-w-[180px]">{fileName}</span>
+          <span className="tabular-nums">{percent}%</span>
+        </>
+      )}
+      {failed ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t("chat.attachment.remove")}
+          className="ml-1 flex min-h-[44px] min-w-[44px] items-center justify-center transition-colors hover:text-destructive"
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** POST a file to a Convex upload URL and report byte progress. */
+export function uploadToConvexStorage(
+  url: string,
+  body: Blob,
+  contentType: string,
+  onProgress: (percent: number) => void,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total <= 0) return;
+      onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error("Upload failed"));
+        return;
+      }
+      try {
+        const parsed = JSON.parse(xhr.responseText) as { storageId?: string };
+        if (!parsed.storageId) {
+          reject(new Error("Upload failed"));
+          return;
+        }
+        resolve(parsed.storageId);
+      } catch {
+        reject(new Error("Upload failed"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.send(body);
+  });
+}

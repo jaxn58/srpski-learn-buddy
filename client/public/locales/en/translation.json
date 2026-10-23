@@ -1287,6 +1287,8 @@
   "chat.attachment.unavailable": "Attachment no longer available",
   "chat.attachment.viewImage": "View image: {{name}}",
   "chat.attachment.remove": "Remove attachment",
+  "chat.upload.wait": "Please wait until your file has finished uploading",
+  "chat.upload.failedRetry": "Upload failed – retry",
   "chat.attachTooltip": "JPG/PNG/WebP · max 3 MB | PDF · max 3 MB | TXT/MD · max 50 KB",
   "chat.attachHint.title": "Supported files",
   "chat.attachHint.images": "JPG / PNG / WebP — max. 3 MB",

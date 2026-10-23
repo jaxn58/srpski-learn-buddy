@@ -160,12 +160,15 @@ export function previewEnergyBandForChat(
     config
   );
 
-  // Attachment surcharge – mirrors the actual billing model so the preview no
-  // longer understates uploads. Images carry the vision premium; documents the
-  // upload base plus a linear per-KB factor (identical formula to
-  // `estimateEnergyCost`, which is what a non-image upload is actually charged
-  // when the provider returns no measured token usage). Added on top of the
-  // answer-token band so the learner sees a realistic higher cost for analyses.
+  // Preview-only attachment surcharge. It is not added by the charge.
+  // `resolveChatEnergyCharge` bills measured tokens. The flat upload estimate
+  // (`estimateEnergyCost`) is charged only for a non-image file when the
+  // provider returns no token usage. Images are always token-priced. Plain
+  // text files are inlined before the charge and are not files there, while
+  // this preview still treats every non-image attachment as an upload.
+  // Images use the vision premium; other files use the upload base plus a
+  // linear per-KB factor. The surcharge is added on top of the answer-token
+  // band, so the preview is higher than the token charge whenever usage exists.
   let attachmentSurcharge = 0;
   if (input.hasImageAttachment) {
     attachmentSurcharge = config.costs.visionSurcharge;
@@ -252,6 +255,26 @@ export function estimateEnergyCost(config: EnergyConfig, input: EnergyEstimateIn
       uploadSurcharge: Math.ceil(uploadSurcharge),
     },
   };
+}
+
+/**
+ * Energy actually charged for one chat reply.
+ *
+ * Measured tokens are the charge. The flat estimate is used only for a
+ * non-image file when the provider reports no token usage. Same branch as
+ * the previous inline check in `finalizeStreamedMessage`.
+ */
+export function resolveChatEnergyCharge(
+  config: EnergyConfig,
+  input: EnergyEstimateInput,
+  usage: TokenUsage,
+  hasMeasuredUsage: boolean,
+  modelName: string,
+): number {
+  if (input.hasFileAttachment && !input.hasImageAttachment && !hasMeasuredUsage) {
+    return estimateEnergyCost(config, input).cost;
+  }
+  return measuredTokensToEnergy(usage, modelName, config);
 }
 
 // ============= Balance helpers =============

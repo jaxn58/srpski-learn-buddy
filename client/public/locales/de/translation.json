@@ -1224,6 +1224,8 @@
   "chat.attachment.unavailable": "Anhang nicht mehr verfügbar",
   "chat.attachment.viewImage": "Bild anzeigen: {{name}}",
   "chat.attachment.remove": "Anhang entfernen",
+  "chat.upload.wait": "Bitte warten, bis deine Datei fertig hochgeladen ist",
+  "chat.upload.failedRetry": "Upload fehlgeschlagen – erneut versuchen",
   "chat.attachTooltip": "JPG/PNG/WebP · max 3 MB | PDF · max 3 MB | TXT/MD · max 50 KB",
   "chat.attachHint.title": "Unterstützte Dateien",
   "chat.attachHint.images": "JPG / PNG / WebP — max. 3 MB",

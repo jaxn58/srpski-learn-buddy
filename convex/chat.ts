@@ -11,8 +11,8 @@ import {
   estimateEnergyCost,
   estimateTokensFromText,
   loadEnergyConfig,
-  measuredTokensToEnergy,
   previewEnergyBandForChat,
+  resolveChatEnergyCharge,
   type EnergyEstimateInput,
   type TokenUsage,
 } from "./energy";
@@ -967,12 +967,18 @@ export const finalizeStreamedMessage = internalMutation({
     inputTokens: v.optional(v.number()),
     outputTokens: v.optional(v.number()),
     inputCharEstimate: v.optional(v.number()),
+    /** False when the model returned no text and only the failure placeholder is stored. */
+    billable: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.messageId, {
       content: args.content,
       ...(args.searchScope !== undefined ? { searchScope: args.searchScope } : {}),
     });
+
+    if (args.billable === false) {
+      return;
+    }
 
     if (!args.content || args.content.trim().length === 0) {
       return;
@@ -995,13 +1001,14 @@ export const finalizeStreamedMessage = internalMutation({
     const aiConfig = await ctx.db.query("chatAiConfig").first();
     const modelName = args.modelName ?? aiConfig?.primaryModel ?? "gemini-2.5-flash";
 
-    const flatEstimate = estimateEnergyCost(cfg, {
+    const chargeInput: EnergyEstimateInput = {
       responseMode: args.responseMode,
       ragUsed: args.ragUsed ?? false,
       hasImageAttachment: args.hasImageAttachment ?? false,
       hasFileAttachment: args.hasFileAttachment ?? false,
       attachmentBytes: args.attachmentBytes ?? 0,
-    });
+    };
+    const flatEstimate = estimateEnergyCost(cfg, chargeInput);
 
     const hasMeasuredUsage =
       args.inputTokens != null &&
@@ -1018,22 +1025,15 @@ export const finalizeStreamedMessage = internalMutation({
       );
     }
 
-    const actualCost =
-      args.hasFileAttachment && !args.hasImageAttachment && !hasMeasuredUsage
-        ? flatEstimate.cost
-        : measuredTokensToEnergy(usage, modelName, cfg);
-
-    const previewBand = previewEnergyBandForChat(
+    const actualCost = resolveChatEnergyCharge(
       cfg,
-      {
-        responseMode: args.responseMode,
-        ragUsed: args.ragUsed ?? false,
-        hasImageAttachment: args.hasImageAttachment ?? false,
-        hasFileAttachment: args.hasFileAttachment ?? false,
-        attachmentBytes: args.attachmentBytes ?? 0,
-      },
-      modelName
+      chargeInput,
+      usage,
+      hasMeasuredUsage,
+      modelName,
     );
+
+    const previewBand = previewEnergyBandForChat(cfg, chargeInput, modelName);
 
     const chargeResult = await chargeEnergy(ctx, message.userId, actualCost, {
       actionType: flatEstimate.actionType,
@@ -2099,6 +2099,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         streamContext.learningLanguage,
         append
       );
+      const answerText = fullText.trim();
 
       const hasImage = !!attachmentMimeType && attachmentMimeType.startsWith("image/");
       const hasFile = !!attachmentUrl && !hasImage;
@@ -2106,7 +2107,8 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
 
       await ctx.runMutation(internal.chat.finalizeStreamedMessage, {
         messageId,
-        content: fullText || "I'm sorry, I couldn't generate a response.",
+        content: answerText || "I'm sorry, I couldn't generate a response.",
+        billable: answerText.length > 0,
         responseMode: body.responseMode,
         searchScope: streamContext.searchScope,
         ragUsed,

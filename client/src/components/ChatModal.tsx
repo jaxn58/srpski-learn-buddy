@@ -22,7 +22,8 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess, canUseChatAttachments } from "@/hooks/useFeatureAccess";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
-import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
+import { ChatAttachmentPreview, ChatPendingAttachment, ChatUploadChip, uploadToConvexStorage } from "@/components/chat/ChatAttachmentPreview";
+import { resolveActiveChatSession } from "@/lib/activeChatSession";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
 import {
@@ -93,17 +94,19 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     fileBytes: number;
     previewUrl?: string;
   } | null>(null);
-  const uploadPromiseRef = useRef<Promise<{
-    storageId: string;
+  const pinnedSessionIdRef = useRef<string | null>(null);
+  const holdCreatedSessionRef = useRef(false);
+  const buddyUnitRef = useRef<number | null>(null);
+  const uploadGenerationRef = useRef(0);
+  const uploadFileRef = useRef<File | null>(null);
+  const [uploadChip, setUploadChip] = useState<{
     fileName: string;
-    fileType: string;
-    fileBytes: number;
-    previewUrl?: string;
-  } | null> | null>(null);
+    progress: number;
+    failed: boolean;
+  } | null>(null);
   const sendGuardRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const prefillHandledRef = useRef(false);
-  const skipAutoSelectRef = useRef(false);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   const hasReadyDocuments = useQuery(api.documents.hasReadyUserDocuments);
   const setSearchScopeMutation = useMutation(api.chat.setSearchScope);
@@ -187,7 +190,13 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   useEffect(() => {
     if (!isOpen) {
       prefillHandledRef.current = false;
-      skipAutoSelectRef.current = false;
+      pinnedSessionIdRef.current = null;
+      holdCreatedSessionRef.current = false;
+      buddyUnitRef.current = null;
+      uploadGenerationRef.current += 1;
+      uploadFileRef.current = null;
+      setUploadChip(null);
+      setIsUploading(false);
       setCurrentSessionId(null);
       setPendingPrefill(null);
       setResponseMode("compact");
@@ -195,11 +204,21 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     }
   }, [isOpen, clearAttachedFile]);
 
+  // A unit switch reopens that unit's buddy chat. It must not run again on
+  // later session-list updates, or it would drop a chat the user just created.
+  useEffect(() => {
+    if (!isOpen) return;
+    if ((unitNumber ?? null) === buddyUnitRef.current) return;
+    buddyUnitRef.current = unitNumber ?? null;
+    holdCreatedSessionRef.current = false;
+    pinnedSessionIdRef.current = null;
+  }, [isOpen, unitNumber]);
+
   // Find or auto-select session based on context
   useEffect(() => {
     if (!sessions || !isOpen) return;
 
-    if (unitNumber != null) {
+    if (unitNumber != null && !holdCreatedSessionRef.current && !pinnedSessionIdRef.current) {
       const buddyTag = `${BUDDY_SESSION_PREFIX}${unitNumber}`;
       const existing = sessions.find((s) => s.title.startsWith(buddyTag));
       if (existing) {
@@ -208,19 +227,14 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       return;
     }
 
-    if (sessions.length === 0) {
-      setCurrentSessionId(null);
-      return;
-    }
-
-    if (!currentSessionId) {
-      if (skipAutoSelectRef.current) return;
-      setCurrentSessionId(sessions[0]._id as unknown as string);
-    } else {
-      const hasCurrent = sessions.some((s) => (s._id as unknown as string) === currentSessionId);
-      if (!hasCurrent) {
-        setCurrentSessionId(sessions[0]._id as unknown as string);
-      }
+    const resolved = resolveActiveChatSession({
+      sessionIds: sessions.map((s) => s._id as unknown as string),
+      currentSessionId,
+      pinnedSessionId: pinnedSessionIdRef.current,
+    });
+    pinnedSessionIdRef.current = resolved.pinnedSessionId;
+    if (resolved.sessionId !== currentSessionId) {
+      setCurrentSessionId(resolved.sessionId);
     }
   }, [sessions, currentSessionId, isOpen, unitNumber, prefillText]);
 
@@ -279,7 +293,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     text: string,
     sessionId: string,
     responseMode?: "compact" | "detailed",
-    attachment?: { storageId: string; fileName: string; fileType: string; fileBytes: number } | null
+    attachment?: { storageId: string; fileName: string; fileType: string; fileBytes: number } | null,
+    onPersisted?: () => void,
   ) => {
     setIsSending(true);
 
@@ -310,6 +325,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
           attachmentSizeBytes: attachment.fileBytes,
         } : {}),
       });
+
+      onPersisted?.();
 
       const meData = user as Doc<"users"> | null;
       if (!meData) throw new Error("Not authenticated");
@@ -423,6 +440,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             const sessionTitle = `${buddyTag} | ${t("buddy.sessionTitle", { unit: unitNumber })}`;
             const newId = await createSessionMutation({ title: sessionTitle });
             sid = newId as unknown as string;
+            pinnedSessionIdRef.current = sid;
           } catch {
             toast.error(t('chat.newChatError'));
             return;
@@ -434,6 +452,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
           try {
             const newId = await createSessionMutation({ title: t('chat.newChat') });
             sid = newId as unknown as string;
+            pinnedSessionIdRef.current = sid;
           } catch {
             toast.error(t('chat.newChatError'));
             return;
@@ -473,6 +492,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     try {
       const sessionId = await createSessionMutation({ title: t('chat.newChat') });
       const sessionIdStr = sessionId as unknown as string;
+      pinnedSessionIdRef.current = sessionIdStr;
       setCurrentSessionId(sessionIdStr);
       return sessionIdStr;
     } catch (error) {
@@ -513,10 +533,16 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       setResponseMode("compact");
       setMessage("");
       clearAttachedFile();
+      uploadGenerationRef.current += 1;
+      uploadFileRef.current = null;
+      setUploadChip(null);
+      setIsUploading(false);
 
       const sessionId = await createSessionMutation({ title: t('chat.newChat') });
-      skipAutoSelectRef.current = true;
-      setCurrentSessionId(sessionId as unknown as string);
+      const sessionIdStr = sessionId as unknown as string;
+      pinnedSessionIdRef.current = sessionIdStr;
+      holdCreatedSessionRef.current = true;
+      setCurrentSessionId(sessionIdStr);
       toast.success(t('chat.newChatSuccess'));
     } catch (error) {
       console.error("Failed to create new chat:", error);
@@ -562,7 +588,76 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     });
   }, []);
 
-  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const clearUploadChip = useCallback(() => {
+    uploadGenerationRef.current += 1;
+    uploadFileRef.current = null;
+    setUploadChip(null);
+    setIsUploading(false);
+  }, []);
+
+  const beginUpload = useCallback(async (file: File) => {
+    const generation = ++uploadGenerationRef.current;
+    uploadFileRef.current = file;
+    setUploadChip({ fileName: file.name, progress: 0, failed: false });
+    setIsUploading(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    const stillCurrent = () => uploadGenerationRef.current === generation;
+
+    try {
+      const isImage = file.type.startsWith("image/");
+      let uploadBody: Blob = file;
+      let uploadType = file.type || "application/octet-stream";
+
+      if (isImage) {
+        uploadBody = await compressImage(file);
+        uploadType = "image/jpeg";
+      }
+      if (!stillCurrent()) return;
+
+      const intendedBytes = uploadBody.size;
+      const uploadUrl = await generateUploadUrl({
+        fileBytes: intendedBytes,
+        fileType: uploadType,
+        uploadSource: "chat_attachment",
+      });
+      if (!stillCurrent()) return;
+
+      const storageId = await uploadToConvexStorage(uploadUrl, uploadBody, uploadType, (percent) => {
+        if (!stillCurrent()) return;
+        setUploadChip((current) =>
+          current && !current.failed ? { ...current, progress: percent } : current,
+        );
+      });
+      if (!stillCurrent()) return;
+
+      let previewUrl: string | undefined;
+      if (isImage) {
+        if (attachPreviewUrlRef.current) {
+          URL.revokeObjectURL(attachPreviewUrlRef.current);
+        }
+        previewUrl = URL.createObjectURL(uploadBody);
+        attachPreviewUrlRef.current = previewUrl;
+      }
+      const attachment = {
+        storageId,
+        fileName: file.name,
+        fileType: uploadType,
+        fileBytes: intendedBytes,
+        previewUrl,
+      };
+      attachedFileRef.current = attachment;
+      setAttachedFile(attachment);
+      uploadFileRef.current = null;
+      setUploadChip(null);
+    } catch {
+      if (!stillCurrent()) return;
+      setUploadChip({ fileName: file.name, progress: 0, failed: true });
+    } finally {
+      if (stillCurrent()) setIsUploading(false);
+    }
+  }, [compressImage, generateUploadUrl]);
+
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -586,116 +681,51 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       return;
     }
 
-    const uploadPromise = (async () => {
-      try {
-        const isImage = file.type.startsWith("image/");
-        let uploadBody: Blob = file;
-        let uploadType = file.type || "application/octet-stream";
+    void beginUpload(file);
+  };
 
-        if (isImage) {
-          uploadBody = await compressImage(file);
-          uploadType = "image/jpeg";
-        }
-
-        // Pre-flight: report intended bytes/type so the backend can enforce the
-        // upload cap and AI-Energy budget BEFORE we transfer the file.
-        const intendedBytes = uploadBody.size;
-        const uploadUrl = await generateUploadUrl({
-          fileBytes: intendedBytes,
-          fileType: uploadType,
-          uploadSource: "chat_attachment",
-        });
-        const resp = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": uploadType },
-          body: uploadBody,
-        });
-        if (!resp.ok) throw new Error("Upload failed");
-        const { storageId } = await resp.json();
-        let previewUrl: string | undefined;
-        if (isImage) {
-          if (attachPreviewUrlRef.current) {
-            URL.revokeObjectURL(attachPreviewUrlRef.current);
-          }
-          previewUrl = URL.createObjectURL(uploadBody);
-          attachPreviewUrlRef.current = previewUrl;
-        }
-        const attachment = {
-          storageId,
-          fileName: file.name,
-          fileType: uploadType,
-          fileBytes: intendedBytes,
-          previewUrl,
-        };
-        attachedFileRef.current = attachment;
-        setAttachedFile(attachment);
-        return attachment;
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Upload failed");
-        return null;
-      }
-    })();
-
-    uploadPromiseRef.current = uploadPromise;
-    setIsUploading(true);
-    try {
-      await uploadPromise;
-    } finally {
-      if (uploadPromiseRef.current === uploadPromise) uploadPromiseRef.current = null;
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+  const retryUpload = () => {
+    const file = uploadFileRef.current;
+    if (!file || isUploading) return;
+    void beginUpload(file);
   };
 
   const handleSend = async () => {
-    if (isSending || sendGuardRef.current) return;
+    if (isSending || sendGuardRef.current || isUploading) return;
 
     const messageToSend = message;
-    const pendingUpload = uploadPromiseRef.current;
-    if (!messageToSend.trim() && !attachedFileRef.current && !pendingUpload) return;
+    const currentAttachment = attachedFileRef.current;
+    if (!messageToSend.trim() && !currentAttachment) return;
 
-    let uploaded: Awaited<typeof pendingUpload> = null;
-    if (pendingUpload) {
-      sendGuardRef.current = true;
-      setIsSending(true);
-      try {
-        uploaded = await pendingUpload;
-      } finally {
-        sendGuardRef.current = false;
+    sendGuardRef.current = true;
+    try {
+      let sessionIdToUse = currentSessionId;
+      if (!sessionIdToUse) {
+        try {
+          sessionIdToUse = await createSessionMutation({ title: t('chat.newChat') }) as unknown as string;
+          pinnedSessionIdRef.current = sessionIdToUse;
+          holdCreatedSessionRef.current = true;
+          setCurrentSessionId(sessionIdToUse);
+        } catch (error) {
+          console.error("Failed to create session:", error);
+          toast.error(t('chat.newChatError'));
+          return;
+        }
       }
-      if (!uploaded) {
-        setIsSending(false);
-        return;
-      }
-    }
 
-    const currentAttachment = uploaded ?? attachedFileRef.current;
-    if (!messageToSend.trim() && !currentAttachment) {
-      setIsSending(false);
-      return;
+      await sendStreaming(messageToSend, sessionIdToUse, responseMode, currentAttachment, () => {
+        setMessage("");
+        clearAttachedFile();
+      });
+    } finally {
+      sendGuardRef.current = false;
     }
-
-    let sessionIdToUse = currentSessionId;
-    if (!sessionIdToUse) {
-      try {
-        sessionIdToUse = await createSessionMutation({ title: t('chat.newChat') }) as unknown as string;
-        setCurrentSessionId(sessionIdToUse);
-      } catch (error) {
-        console.error("Failed to create session:", error);
-        toast.error(t('chat.newChatError'));
-        setIsSending(false);
-        return;
-      }
-    }
-
-    setMessage("");
-    clearAttachedFile();
-    await sendStreaming(messageToSend, sessionIdToUse, responseMode, currentAttachment);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (isUploading) return;
       handleSend();
     }
   };
@@ -988,8 +1018,17 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
           {/* Input Area -- hidden while mode-selection (pendingPrefill) is active */}
           {!pendingPrefill && (
             <div className="border-t p-3 sm:p-4 bg-muted/30 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              {(attachedFile || searchScope !== "both") && (
+              {(attachedFile || uploadChip || searchScope !== "both") && (
                 <div className="flex items-center gap-2 px-2 pb-2 flex-wrap">
+                  {uploadChip && !attachedFile && (
+                    <ChatUploadChip
+                      fileName={uploadChip.fileName}
+                      progress={uploadChip.progress}
+                      failed={uploadChip.failed}
+                      onRetry={retryUpload}
+                      onRemove={clearUploadChip}
+                    />
+                  )}
                   {attachedFile && (
                     <>
                       <ChatPendingAttachment
@@ -1050,7 +1089,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading || isSending || !!attachedFile}
+                        disabled={isUploading || isSending || !!attachedFile || !!uploadChip}
                         size="icon"
                         variant="ghost"
                         className="rounded-full h-10 w-10 shrink-0"
@@ -1150,10 +1189,12 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 ) : (
                   <Button
                     onClick={handleSend}
-                    disabled={(!message.trim() && !attachedFile) || isSending || energyBlocksSend}
+                    disabled={(!message.trim() && !attachedFile) || isSending || isUploading || energyBlocksSend}
                     size="icon"
                     className="rounded-full h-11 w-11 sm:h-10 sm:w-10 shrink-0 sm:order-3"
-                    title={energyBlocksSend
+                    title={isUploading
+                      ? t('chat.upload.wait')
+                      : energyBlocksSend
                       ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
                         ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
                         : t('chat.energy.notEnough', {
