@@ -409,9 +409,10 @@ function assertNonNegative(value: number, label: string, max: number): void {
  * in `args` are patched; the rest keep their existing values.
  *
  * Cost table is integer-bounded (≤ 1000) to prevent typos creating runaway
- * deductions; `uploadPerKb` allows decimals because real cost is sub-integer
- * per KB. Quotas are bounded to 1,000,000 (≈ 1M Energy is far beyond any
- * realistic month).
+ * deductions. `uploadPerKb` allows decimals. The chat preview does not add
+ * the vision or upload surcharges; the flat fallback still uses the upload
+ * fields when a non-image file reports no tokens. Quotas are bounded to
+ * 1,000,000 (≈ 1M Energy is far beyond any realistic month).
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setEnergyConfig = mutation({

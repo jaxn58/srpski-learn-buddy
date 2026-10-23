@@ -4,7 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { getFeatureAccessForUser } from "./featureAccess";
-import { estimateEnergyCost, loadEnergyConfig } from "./energy";
+import { loadEnergyConfig, previewEnergyBandForChat } from "./energy";
 import {
   assertDailyUploadRateLimit,
   assertStorageQuotaAvailable,
@@ -107,6 +107,10 @@ export const generateUploadUrl = mutation({
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     acknowledgedCost: v.optional(v.number()),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    attachmentPageCount: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    attachmentTextChars: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     uploadSource: v.optional(uploadSourceValidator),
   },
   returns: v.string(),
@@ -166,15 +170,21 @@ export const generateUploadUrl = mutation({
 
       const mime = args.fileType ?? "application/octet-stream";
       const isImage = mime.startsWith("image/");
-      const estimate = estimateEnergyCost(cfg, {
+      const aiConfig = await ctx.db.query("chatAiConfig").first();
+      const modelName = aiConfig?.primaryModel ?? "gemini-2.5-flash";
+      const preview = previewEnergyBandForChat(cfg, {
+        responseMode: "compact",
+        ragUsed: true,
         hasImageAttachment: isImage,
         hasFileAttachment: !isImage,
         attachmentBytes: args.fileBytes,
-      });
+        attachmentPageCount: args.attachmentPageCount,
+        attachmentTextChars: args.attachmentTextChars,
+      }, modelName);
 
-      if (typeof args.acknowledgedCost === "number" && args.acknowledgedCost < estimate.cost) {
+      if (typeof args.acknowledgedCost === "number" && args.acknowledgedCost < preview.costMax) {
         throw new Error(
-          `Cost mismatch: upload requires ${estimate.cost} Energy, but client acknowledged only ${args.acknowledgedCost}. Please retry.`
+          `Cost mismatch: upload preview is up to ${preview.costMax} Energy, but client acknowledged only ${args.acknowledgedCost}. Please retry.`
         );
       }
     }

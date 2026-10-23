@@ -173,7 +173,7 @@
   "home.pricing.energyExamples.detailed.label": "Ausführliche Antwort",
   "home.pricing.energyExamples.detailed.desc": "Detaillierte Antwort mit Beispielen und Erklärungen.",
   "home.pricing.energyExamples.chatAttachment.label": "Ausführliche Antwort + Bildanalyse",
-  "home.pricing.energyExamples.chatAttachment.desc": "Foto oder Datei im Chat anhängen – die AI analysiert das Bild und antwortet ausführlich.",
+  "home.pricing.energyExamples.chatAttachment.desc": "Mitte der Schätzung für eine ausführliche Antwort mit Foto. Ein Dokument folgt der Seitenzahl.",
   "home.pricing.energyExamples.footnote": "Das sind die Basispreise, die 1:1 der Admin-Konfiguration entsprechen. Der tatsächliche Verbrauch kann bei Kurs-/Wissensablage-Kontext einen kleinen Aufschlag enthalten; Uploads werden separat nach Dateigröße abgerechnet. Du siehst vor jeder Aktion den aktuellen Preis.",
 
   "home.pricing.topups.title": "AI-Energie nachladen",

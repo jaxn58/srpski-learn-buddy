@@ -116,9 +116,12 @@ const COST_FIELDS: FieldDef[] = [
   { key: "energyCostCompact",     label: "Compact answer",  hint: "Energy per compact reply",         step: 1 },
   { key: "energyCostDetailed",    label: "Detailed answer", hint: "Energy per detailed reply",        step: 1 },
   { key: "energyRagSurcharge",    label: "RAG surcharge",   hint: "Added when RAG context retrieval is used (unit, knowledge base, documents)", step: 1 },
-  { key: "energyVisionSurcharge", label: "Vision surcharge",hint: "Added for image analysis",         step: 1 },
-  { key: "energyUploadBase",      label: "Upload base",     hint: "Flat fee per document upload",     step: 1 },
-  { key: "energyUploadPerKb",     label: "Upload per KB",   hint: "Per-KB factor (decimals allowed, e.g. 0.02)", step: 0.01 },
+];
+
+const SURCHARGE_DISPLAY_FIELDS: FieldDef[] = [
+  { key: "energyVisionSurcharge", label: "Vision surcharge", hint: "Display only. The chat preview estimates an image as 258 input tokens and does not add this." },
+  { key: "energyUploadBase",      label: "Upload base",      hint: "Display only for the chat preview. Used only when a non-image file returns no token usage." },
+  { key: "energyUploadPerKb",     label: "Upload per KB",    hint: "Display only for the chat preview. Same fallback as upload base. A PDF preview uses 258 tokens per page." },
 ];
 
 const QUOTA_FIELDS: FieldDef[] = [
@@ -212,9 +215,6 @@ export function EnergyConfigCard() {
     draft.energyCostCompact !== config.energyCostCompact ||
     draft.energyCostDetailed !== config.energyCostDetailed ||
     draft.energyRagSurcharge !== config.energyRagSurcharge ||
-    draft.energyVisionSurcharge !== config.energyVisionSurcharge ||
-    draft.energyUploadBase !== config.energyUploadBase ||
-    draft.energyUploadPerKb !== config.energyUploadPerKb ||
     draft.energyQuotaFull !== config.energyQuotaFull ||
     draft.energyQuotaBuddy !== config.energyQuotaBuddy ||
     draft.energyQuotaBasic !== config.energyQuotaBasic ||
@@ -330,7 +330,15 @@ export function EnergyConfigCard() {
     if (!draft) return;
     setSaving(true);
     try {
-      await setEnergyConfig(draft);
+      await setEnergyConfig({
+        energyCostCompact: draft.energyCostCompact,
+        energyCostDetailed: draft.energyCostDetailed,
+        energyRagSurcharge: draft.energyRagSurcharge,
+        energyQuotaFull: draft.energyQuotaFull,
+        energyQuotaBuddy: draft.energyQuotaBuddy,
+        energyQuotaBasic: draft.energyQuotaBasic,
+        uploadMaxFileBytes: draft.uploadMaxFileBytes,
+      });
       toast.success("Energy configuration saved");
       setConfirmOpen(false);
     } catch (e) {
@@ -511,6 +519,20 @@ export function EnergyConfigCard() {
                     value={draft ? String(draft[f.key]) : ""}
                     onChange={(e) => handleField(f.key, e.target.value)}
                     disabled={draft === null}
+                    className="mt-1 w-full"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{f.hint}</p>
+                </div>
+              ))}
+              {SURCHARGE_DISPLAY_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <Label htmlFor={`ec-${f.key}`} className="text-sm">{f.label}</Label>
+                  <Input
+                    id={`ec-${f.key}`}
+                    type="number"
+                    value={config ? String(config[f.key]) : ""}
+                    readOnly
+                    disabled
                     className="mt-1 w-full"
                   />
                   <p className="text-xs text-muted-foreground mt-1">{f.hint}</p>
@@ -806,9 +828,6 @@ export function EnergyConfigCard() {
                   <DeltaRow label="Compact cost"        before={config.energyCostCompact}     after={draft.energyCostCompact} />
                   <DeltaRow label="Detailed cost"       before={config.energyCostDetailed}    after={draft.energyCostDetailed} />
                   <DeltaRow label="RAG surcharge"       before={config.energyRagSurcharge}    after={draft.energyRagSurcharge} />
-                  <DeltaRow label="Vision surcharge"    before={config.energyVisionSurcharge} after={draft.energyVisionSurcharge} />
-                  <DeltaRow label="Upload base"         before={config.energyUploadBase}      after={draft.energyUploadBase} />
-                  <DeltaRow label="Upload per KB"       before={config.energyUploadPerKb}     after={draft.energyUploadPerKb} />
                   <DeltaRow label="Pro quota"           before={config.energyQuotaFull}       after={draft.energyQuotaFull} />
                   <DeltaRow label="Standalone quota"    before={config.energyQuotaBuddy}      after={draft.energyQuotaBuddy} />
                   <DeltaRow label="AI quota"            before={config.energyQuotaBasic}      after={draft.energyQuotaBasic} />

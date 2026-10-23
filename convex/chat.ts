@@ -7,6 +7,7 @@ import { assertLearnerAccountActive } from "./authz";
 import { getFeatureAccessForUser } from "./featureAccess";
 import { loadTeaserDailyLimit } from "./platform";
 import {
+  ATTACHMENT_PREVIEW_TEXT_CHAR_CAP,
   chargeEnergy,
   estimateEnergyCost,
   estimateTokensFromText,
@@ -829,6 +830,8 @@ export const checkMessageRateLimit = mutation({
     hasImageAttachment: v.optional(v.boolean()),
     hasFileAttachment: v.optional(v.boolean()),
     attachmentBytes: v.optional(v.number()),
+    attachmentPageCount: v.optional(v.number()),
+    attachmentTextChars: v.optional(v.number()),
     // Whether the request will trigger RAG (unit context or semantic search).
     // The Buddy enables RAG by default for paid users in the streaming HTTP
     // action; the frontend forwards that intent here.
@@ -901,6 +904,8 @@ export const checkMessageRateLimit = mutation({
         hasImageAttachment: args.hasImageAttachment ?? false,
         hasFileAttachment: args.hasFileAttachment ?? false,
         attachmentBytes: args.attachmentBytes ?? 0,
+        attachmentPageCount: args.attachmentPageCount,
+        attachmentTextChars: args.attachmentTextChars,
       };
       const band = previewEnergyBandForChat(cfg, estInput, modelName);
       energyEstimateMin = band.costMin;
@@ -963,6 +968,8 @@ export const finalizeStreamedMessage = internalMutation({
     hasImageAttachment: v.optional(v.boolean()),
     hasFileAttachment: v.optional(v.boolean()),
     attachmentBytes: v.optional(v.number()),
+    attachmentPageCount: v.optional(v.number()),
+    attachmentTextChars: v.optional(v.number()),
     modelName: v.optional(v.string()),
     inputTokens: v.optional(v.number()),
     outputTokens: v.optional(v.number()),
@@ -1033,7 +1040,11 @@ export const finalizeStreamedMessage = internalMutation({
       modelName,
     );
 
-    const previewBand = previewEnergyBandForChat(cfg, chargeInput, modelName);
+    const previewBand = previewEnergyBandForChat(cfg, {
+      ...chargeInput,
+      attachmentPageCount: args.attachmentPageCount,
+      attachmentTextChars: args.attachmentTextChars,
+    }, modelName);
 
     const chargeResult = await chargeEnergy(ctx, message.userId, actualCost, {
       actionType: flatEstimate.actionType,
@@ -1058,6 +1069,8 @@ export const estimateEnergyForAction = query({
     hasImageAttachment: v.optional(v.boolean()),
     hasFileAttachment: v.optional(v.boolean()),
     attachmentBytes: v.optional(v.number()),
+    attachmentPageCount: v.optional(v.number()),
+    attachmentTextChars: v.optional(v.number()),
     ragHinted: v.optional(v.boolean()),
   },
   returns: v.object({
@@ -1093,6 +1106,8 @@ export const estimateEnergyForAction = query({
       hasImageAttachment: args.hasImageAttachment ?? false,
       hasFileAttachment: args.hasFileAttachment ?? false,
       attachmentBytes: args.attachmentBytes ?? 0,
+      attachmentPageCount: args.attachmentPageCount,
+      attachmentTextChars: args.attachmentTextChars,
     });
     const band = previewEnergyBandForChat(cfg, {
       responseMode: args.responseMode,
@@ -1100,6 +1115,8 @@ export const estimateEnergyForAction = query({
       hasImageAttachment: args.hasImageAttachment ?? false,
       hasFileAttachment: args.hasFileAttachment ?? false,
       attachmentBytes: args.attachmentBytes ?? 0,
+      attachmentPageCount: args.attachmentPageCount,
+      attachmentTextChars: args.attachmentTextChars,
     }, modelName);
 
     const identity = await ctx.auth.getUserIdentity();
@@ -1814,6 +1831,8 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     attachmentFileName?: string;
     attachmentFileType?: string;
     attachmentBytes?: number;
+    attachmentPageCount?: number;
+    attachmentTextChars?: number;
     responseMode?: "compact" | "detailed";
   };
 
@@ -1870,7 +1889,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   }
 
   // Hard character caps for text attachments — keeps token spend predictable.
-  const TEXT_CHAR_CAP = 8_000;
+  const TEXT_CHAR_CAP = ATTACHMENT_PREVIEW_TEXT_CHAR_CAP;
   const PDF_CHAR_CAP = 15_000;
 
   let attachmentUrl: string | null = null;
@@ -2115,6 +2134,8 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         hasImageAttachment: hasImage,
         hasFileAttachment: hasFile,
         attachmentBytes: body.attachmentBytes,
+        attachmentPageCount: body.attachmentPageCount,
+        attachmentTextChars: body.attachmentTextChars,
         modelName: streamResult.model,
         inputTokens: streamResult.usage?.inputTokens,
         outputTokens: streamResult.usage?.outputTokens,

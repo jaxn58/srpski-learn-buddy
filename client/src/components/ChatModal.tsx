@@ -23,6 +23,7 @@ import { useFeatureAccess, canUseChatAttachments } from "@/hooks/useFeatureAcces
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment, ChatUploadChip, uploadToConvexStorage } from "@/components/chat/ChatAttachmentPreview";
+import { readAttachmentPreviewFacts } from "@shared/chat/pdfPageCount";
 import { resolveActiveChatSession } from "@/lib/activeChatSession";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
@@ -80,6 +81,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     fileName: string;
     fileType: string;
     fileBytes: number;
+    pageCount?: number;
+    textChars?: number;
     previewUrl?: string;
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -92,6 +95,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     fileName: string;
     fileType: string;
     fileBytes: number;
+    pageCount?: number;
+    textChars?: number;
     previewUrl?: string;
   } | null>(null);
   const pinnedSessionIdRef = useRef<string | null>(null);
@@ -125,6 +130,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     hasImageAttachment: attachIsImage,
     hasFileAttachment: attachedFile != null && !attachIsImage,
     attachmentBytes: attachedFile?.fileBytes,
+    ...(attachedFile?.pageCount != null ? { attachmentPageCount: attachedFile.pageCount } : {}),
+    ...(attachedFile?.textChars != null ? { attachmentTextChars: attachedFile.textChars } : {}),
   });
   const compactEstimate = useQuery(api.chat.estimateEnergyForAction, {
     responseMode: "compact" as const,
@@ -140,17 +147,11 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     !upcomingEnergyEstimate.teaserOnly &&
     !upcomingEnergyEstimate.enough;
 
-  // Upload quota + rough per-analysis Energy band for the attach info tooltip.
-  // Mirrors the main chat page so both surfaces show the same, admin-bound hint.
   const [attachQuotaNow, setAttachQuotaNow] = useState(() => Date.now());
   const attachQuota = useQuery(
     api.documents.getChatAttachmentQuota,
     canUploadDocuments && user ? { now: attachQuotaNow } : "skip"
   );
-  const attachEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
-    ragHinted: true,
-    hasFileAttachment: true,
-  });
   const formatEnergyRange = (
     estimate?: { costMin: number; costMax: number; unlimited: boolean; teaserOnly: boolean } | null,
   ): string | null => {
@@ -293,7 +294,14 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     text: string,
     sessionId: string,
     responseMode?: "compact" | "detailed",
-    attachment?: { storageId: string; fileName: string; fileType: string; fileBytes: number } | null,
+    attachment?: {
+      storageId: string;
+      fileName: string;
+      fileType: string;
+      fileBytes: number;
+      pageCount?: number;
+      textChars?: number;
+    } | null,
     onPersisted?: () => void,
   ) => {
     setIsSending(true);
@@ -309,6 +317,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
         hasImageAttachment: hasImage,
         hasFileAttachment: hasFile,
         attachmentBytes: attachment?.fileBytes,
+        ...(attachment?.pageCount != null ? { attachmentPageCount: attachment.pageCount } : {}),
+        ...(attachment?.textChars != null ? { attachmentTextChars: attachment.textChars } : {}),
         ragHinted: true,
       });
 
@@ -365,6 +375,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             attachmentFileName: attachment.fileName,
             attachmentFileType: attachment.fileType,
             attachmentBytes: attachment.fileBytes,
+            ...(attachment.pageCount != null ? { attachmentPageCount: attachment.pageCount } : {}),
+            ...(attachment.textChars != null ? { attachmentTextChars: attachment.textChars } : {}),
           } : {}),
         }),
         signal: abortController.signal,
@@ -604,6 +616,9 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     const stillCurrent = () => uploadGenerationRef.current === generation;
 
     try {
+      const previewFacts = await readAttachmentPreviewFacts(file);
+      if (!stillCurrent()) return;
+
       const isImage = file.type.startsWith("image/");
       let uploadBody: Blob = file;
       let uploadType = file.type || "application/octet-stream";
@@ -643,6 +658,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
         fileName: file.name,
         fileType: uploadType,
         fileBytes: intendedBytes,
+        pageCount: previewFacts.pageCount,
+        textChars: previewFacts.textChars,
         previewUrl,
       };
       attachedFileRef.current = attachment;
@@ -1111,18 +1128,6 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                         <div className="opacity-80">{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</div>
                         <div className="opacity-80">{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</div>
                         <div className="opacity-80">{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</div>
-                        {(() => {
-                          const analysisCost = formatEnergyRange(attachEnergyEstimate);
-                          return analysisCost ? (
-                            <div className="flex items-center gap-1 pt-0.5 tabular-nums">
-                              <Zap className="h-3 w-3 shrink-0" />
-                              {t('chat.attachHint.energy', {
-                                cost: analysisCost,
-                                defaultValue: 'Analysis from ≈ {{cost}} Energy',
-                              })}
-                            </div>
-                          ) : null;
-                        })()}
                         <div className="my-1 border-t border-background/20" />
                         {attachQuota?.unlimited ? (
                           <div className="opacity-80">{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</div>

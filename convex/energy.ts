@@ -129,6 +129,34 @@ export type EnergyPreviewBand = {
   costMid: number;
 };
 
+/**
+ * Chat-preview estimate for one image.
+ * Gemini counts a small image as 258 tokens. The chat preview uses that
+ * figure for every image; the charge still uses the measured tokens.
+ */
+export const ATTACHMENT_PREVIEW_IMAGE_INPUT_TOKENS = 258;
+
+/** Chat-preview estimate for one PDF page (Gemini document rule). */
+export const ATTACHMENT_PREVIEW_TOKENS_PER_PDF_PAGE = 258;
+
+/** Character cap applied before a text attachment is inlined into the prompt. */
+export const ATTACHMENT_PREVIEW_TEXT_CHAR_CAP = 8_000;
+
+/** Input tokens the preview adds for an attachment. Zero when the file shape is unknown. */
+export function attachmentPreviewInputTokens(input: EnergyEstimateInput): number {
+  if (input.hasImageAttachment) return ATTACHMENT_PREVIEW_IMAGE_INPUT_TOKENS;
+  const textChars = input.attachmentTextChars ?? 0;
+  if (Number.isFinite(textChars) && textChars > 0) {
+    const capped = Math.min(textChars, ATTACHMENT_PREVIEW_TEXT_CHAR_CAP);
+    return Math.ceil(capped / 4);
+  }
+  const pages = Math.floor(input.attachmentPageCount ?? 0);
+  if (Number.isFinite(pages) && pages > 0) {
+    return pages * ATTACHMENT_PREVIEW_TOKENS_PER_PDF_PAGE;
+  }
+  return 0;
+}
+
 export function previewEnergyBandForChat(
   config: EnergyConfig,
   input: EnergyEstimateInput,
@@ -140,12 +168,13 @@ export function previewEnergyBandForChat(
   // Token heuristics derived from measured production data (June 2026).
   // Compact answers stay short; detailed answers with RAG consistently
   // produce 1000-3000 output tokens with 3000-8000 input tokens.
-  const inputMin = isDetailed
+  const attachmentTokens = attachmentPreviewInputTokens(input);
+  const inputMin = (isDetailed
     ? (withRag ? 3000 : 800)
-    : (withRag ? 600 : 400);
-  const inputMax = isDetailed
+    : (withRag ? 600 : 400)) + attachmentTokens;
+  const inputMax = (isDetailed
     ? (withRag ? 6000 : 2000)
-    : (withRag ? 3500 : 1200);
+    : (withRag ? 3500 : 1200)) + attachmentTokens;
   const outputMin = isDetailed ? (withRag ? 1100 : 800) : 120;
   const outputMax = isDetailed ? 3000 : 450;
 
@@ -160,28 +189,14 @@ export function previewEnergyBandForChat(
     config
   );
 
-  // Preview-only attachment surcharge. It is not added by the charge.
-  // `resolveChatEnergyCharge` bills measured tokens. The flat upload estimate
-  // (`estimateEnergyCost`) is charged only for a non-image file when the
-  // provider returns no token usage. Images are always token-priced. Plain
-  // text files are inlined before the charge and are not files there, while
-  // this preview still treats every non-image attachment as an upload.
-  // Images use the vision premium; other files use the upload base plus a
-  // linear per-KB factor. The surcharge is added on top of the answer-token
-  // band, so the preview is higher than the token charge whenever usage exists.
-  let attachmentSurcharge = 0;
-  if (input.hasImageAttachment) {
-    attachmentSurcharge = config.costs.visionSurcharge;
-  } else if (input.hasFileAttachment) {
-    const kb = (input.attachmentBytes ?? 0) / 1024;
-    attachmentSurcharge = config.costs.uploadBase + kb * config.costs.uploadPerKb;
-  }
-  const surcharge = Math.ceil(attachmentSurcharge);
-
+  // Attachment tokens are folded into the answer band. The vision and upload
+  // surcharges are not added here. `resolveChatEnergyCharge` still bills
+  // measured tokens, and uses the flat upload estimate only when a non-image
+  // file returns no token usage.
   return {
-    costMin: minEnergy + surcharge,
-    costMax: maxEnergy + surcharge,
-    costMid: Math.ceil((minEnergy + maxEnergy) / 2) + surcharge,
+    costMin: minEnergy,
+    costMax: maxEnergy,
+    costMid: Math.ceil((minEnergy + maxEnergy) / 2),
   };
 }
 
@@ -199,6 +214,10 @@ export type EnergyEstimateInput = {
   hasImageAttachment?: boolean;
   hasFileAttachment?: boolean;
   attachmentBytes?: number;
+  /** PDF pages for the preview. Ignored by the charge. */
+  attachmentPageCount?: number;
+  /** Original text-file length for the preview. Ignored by the charge. */
+  attachmentTextChars?: number;
 };
 
 export type EnergyEstimate = {

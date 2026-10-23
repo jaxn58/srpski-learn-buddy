@@ -150,4 +150,4 @@ Variante B macht die Zahl, die der Nutzer vor dem Senden sieht, zur Schätzung d
 
 Offen bleibt nur die PDF-Formel, falls ein späteres Modell den nativen Text zusätzlich zu den 258 Tokens je Seite berechnet. Das ist ein Grund, die Schätzung an der Seitenzahl festzumachen und sie nach einem Modellwechsel gegen die gemeldete Nutzung zu prüfen. Es ist kein Grund, den Zuschlag auf die Tokens zu addieren.
 
-Nicht umgesetzt. Preise und Abzugsbeträge bleiben die heutigen.
+Umgesetzt am 2026-10-23 als Variante B. Die Vorschau schätzt Anhang-Tokens (Bild 258, PDF 258 je Seite, Text gekürzte Zeichen durch 4) und addiert die Zuschläge nicht mehr. Der Abzug bleibt tokenbasiert. Die Zuschläge bleiben gespeichert und sind im Admin nur noch Anzeige; Upload-Grundpreis und Preis pro KB gelten weiter nur, wenn eine Nicht-Bild-Datei keine Tokens meldet.

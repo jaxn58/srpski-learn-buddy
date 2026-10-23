@@ -5,7 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive, isStaffRole } from "./authz";
 import { loadBetaMaxUnits, loadBetaTesterDiscountPercent, DEFAULT_WELCOME_ENERGY_AMOUNT } from "./platform";
-import { applyTopUpToSubscriptionBalances, loadEnergyConfig } from "./energy";
+import { applyTopUpToSubscriptionBalances, loadEnergyConfig, previewEnergyBandForChat } from "./energy";
 
 /** Stable error code: paid checkout/top-up blocked while beta phase is active (non-staff). */
 const BETA_CHECKOUT_DISABLED = "beta_checkout_disabled";
@@ -1350,8 +1350,14 @@ export const getPublicEnergyInfo = query({
   handler: async (ctx) => {
     const cfg = await loadEnergyConfig(ctx);
     const platformConfig = await ctx.db.query("platformConfig").first();
+    const aiConfig = await ctx.db.query("chatAiConfig").first();
     const welcomeEnergyAmount =
       platformConfig?.welcomeEnergyAmount ?? DEFAULT_WELCOME_ENERGY_AMOUNT;
+    const photoScan = previewEnergyBandForChat(
+      cfg,
+      { responseMode: "detailed", ragUsed: true, hasImageAttachment: true },
+      aiConfig?.primaryModel ?? "gemini-2.5-flash",
+    ).costMid;
     return {
       quotas: {
         course: 0,
@@ -1367,10 +1373,10 @@ export const getPublicEnergyInfo = query({
         typicalChat: cfg.costs.compact,
         // Detailed answer (raw admin value, no hidden surcharges).
         detailedAnswer: cfg.costs.detailed,
-        // Photo scan = detailed answer + vision surcharge. Vision is
-        // technically required for image analysis, so this is a real
-        // minimum price, not an optional add-on.
-        photoScan: cfg.costs.detailed + cfg.costs.visionSurcharge,
+        // Middle of the chat preview for a detailed reply with RAG and one
+        // image. The vision surcharge is not added. A document's preview
+        // follows its page count and is not this single figure.
+        photoScan,
       },
       monthlyReset: true,
       welcomeEnergyAmount,

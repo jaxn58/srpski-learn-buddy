@@ -60,18 +60,19 @@ const measured: Case[] = [
     inputTokens: 4004,
     outputTokens: 39,
     hasMeasuredUsage: true,
-    previewMin: 4,
-    previewMax: 5,
-    previewMid: 5,
+    previewMin: 1,
+    previewMax: 2,
+    previewMid: 2,
     charge: 1,
   },
   {
-    name: "pdf 1220928 bytes, usage present",
+    name: "pdf 1220928 bytes, 400 pages, usage present",
     previewInput: {
       responseMode: "compact",
       ragUsed: true,
       hasFileAttachment: true,
       attachmentBytes: 1220928,
+      attachmentPageCount: 400,
     },
     chargeInput: {
       responseMode: "compact",
@@ -82,9 +83,9 @@ const measured: Case[] = [
     inputTokens: 106962,
     outputTokens: 55,
     hasMeasuredUsage: true,
-    previewMin: 30,
-    previewMax: 31,
-    previewMid: 31,
+    previewMin: 19,
+    previewMax: 20,
+    previewMid: 20,
     charge: 20,
   },
   {
@@ -94,6 +95,7 @@ const measured: Case[] = [
       ragUsed: true,
       hasFileAttachment: true,
       attachmentBytes: 20480,
+      attachmentTextChars: 20480,
     },
     chargeInput: {
       responseMode: "compact",
@@ -104,9 +106,9 @@ const measured: Case[] = [
     inputTokens: 6104,
     outputTokens: 55,
     hasMeasuredUsage: true,
-    previewMin: 7,
-    previewMax: 8,
-    previewMid: 8,
+    previewMin: 1,
+    previewMax: 2,
+    previewMid: 2,
     charge: 2,
   },
   {
@@ -158,7 +160,8 @@ describe("energy preview vs charge", () => {
       expect(preview.costMax).toBe(row.previewMax);
       expect(preview.costMid).toBe(row.previewMid);
       expect(charge).toBe(row.charge);
-      expect(preview.costMid).toBeGreaterThan(charge);
+      expect(preview.costMin).toBeLessThanOrEqual(charge);
+      expect(preview.costMax).toBeGreaterThanOrEqual(charge);
     }
   });
 
@@ -168,6 +171,7 @@ describe("energy preview vs charge", () => {
       ragUsed: true,
       hasFileAttachment: true,
       attachmentBytes: 1220928,
+      attachmentPageCount: 400,
     };
     const flat = estimateEnergyCost(config, input);
     const charge = resolveChatEnergyCharge(
@@ -183,6 +187,6 @@ describe("energy preview vs charge", () => {
     );
     expect(charge).toBe(flat.cost);
     expect(charge).toBe(31);
-    expect(preview.costMid).toBe(31);
+    expect(preview.costMid).toBe(20);
   });
 });

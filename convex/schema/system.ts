@@ -228,9 +228,9 @@ export const systemTables = {
     energyCostCompact: v.optional(v.number()),       // default 1
     energyCostDetailed: v.optional(v.number()),      // default 3
     energyRagSurcharge: v.optional(v.number()),      // default +1 when context/RAG used
-    energyVisionSurcharge: v.optional(v.number()),   // default +3 when image attachment
-    energyUploadBase: v.optional(v.number()),        // default 5 (base for any upload)
-    energyUploadPerKb: v.optional(v.number()),       // default 0.02 → 1 Energy per 50 KB
+    energyVisionSurcharge: v.optional(v.number()),   // stored display value; chat preview does not add it
+    energyUploadBase: v.optional(v.number()),        // flat fallback only, when a non-image file reports no tokens
+    energyUploadPerKb: v.optional(v.number()),       // flat fallback only, when a non-image file reports no tokens
     // Monthly inclusive quotas per tier (fallback when subscription has no own value).
     energyQuotaFull: v.optional(v.number()),         // default 750
     energyQuotaBuddy: v.optional(v.number()),        // default 600 (AI Chat Standalone)

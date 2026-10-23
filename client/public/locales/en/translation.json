@@ -173,7 +173,7 @@
   "home.pricing.energyExamples.detailed.label": "Detailed answer",
   "home.pricing.energyExamples.detailed.desc": "In-depth reply with examples and explanations.",
   "home.pricing.energyExamples.chatAttachment.label": "Detailed answer + image analysis",
-  "home.pricing.energyExamples.chatAttachment.desc": "Attach a photo or file in chat – the AI analyzes the image and replies in detail.",
+  "home.pricing.energyExamples.chatAttachment.desc": "Middle of the estimate for a detailed reply with a photo. A document follows its page count.",
   "home.pricing.energyExamples.footnote": "These are base prices that mirror the admin configuration 1:1. Actual cost may add a small context surcharge when course/knowledge context is used, and uploads are billed separately by file size. You'll always see the current price before each action.",
 
   "home.pricing.topups.title": "AI Energy top-ups",

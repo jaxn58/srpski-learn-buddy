@@ -1538,7 +1538,7 @@ export default function Home() {
                       {t("home.pricing.energyExamples.chatAttachment.label")}
                     </div>
                     <div className="text-base font-bold text-gray-900">
-                      {energyInfo?.costs.photoScan ?? 6} {t("home.pricing.energyExamples.energyUnit")}
+                      {energyInfo?.costs.photoScan ?? 5} {t("home.pricing.energyExamples.energyUnit")}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
                       {t("home.pricing.energyExamples.chatAttachment.desc")}

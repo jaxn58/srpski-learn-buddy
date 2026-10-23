@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment, ChatUploadChip, uploadToConvexStorage } from "@/components/chat/ChatAttachmentPreview";
+import { readAttachmentPreviewFacts } from "@shared/chat/pdfPageCount";
 import { resolveActiveChatSession } from "@/lib/activeChatSession";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
@@ -63,6 +64,8 @@ export default function Chat() {
     fileName: string;
     fileType: string;
     fileBytes: number;
+    pageCount?: number;
+    textChars?: number;
     previewUrl?: string;
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -77,6 +80,8 @@ export default function Chat() {
     fileName: string;
     fileType: string;
     fileBytes: number;
+    pageCount?: number;
+    textChars?: number;
     previewUrl?: string;
   } | null>(null);
   const pinnedSessionIdRef = useRef<string | null>(null);
@@ -113,6 +118,8 @@ export default function Chat() {
     hasImageAttachment: attachIsImage,
     hasFileAttachment: attachedFile != null && !attachIsImage,
     attachmentBytes: attachedFile?.fileBytes,
+    ...(attachedFile?.pageCount != null ? { attachmentPageCount: attachedFile.pageCount } : {}),
+    ...(attachedFile?.textChars != null ? { attachmentTextChars: attachedFile.textChars } : {}),
   });
   const energyBlocksSend =
     upcomingEnergyEstimate != null &&
@@ -120,13 +127,6 @@ export default function Chat() {
     !upcomingEnergyEstimate.teaserOnly &&
     !upcomingEnergyEstimate.enough;
 
-  // Rough per-analysis Energy band for the attach hint, shown before a file is
-  // picked. Bound to the admin-configured Energy pricing (same query that gates
-  // the send button), so it stays dynamic and never hardcoded.
-  const attachEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
-    ragHinted: true,
-    hasFileAttachment: true,
-  });
   const formatEnergyRange = (
     estimate?: { costMin: number; costMax: number; unlimited: boolean; teaserOnly: boolean } | null,
   ): string | null => {
@@ -408,6 +408,9 @@ export default function Chat() {
     const stillCurrent = () => uploadGenerationRef.current === generation;
 
     try {
+      const previewFacts = await readAttachmentPreviewFacts(file);
+      if (!stillCurrent()) return;
+
       const isImage = file.type.startsWith("image/");
       let uploadBody: Blob = file;
       let uploadType = file.type || "application/octet-stream";
@@ -447,6 +450,8 @@ export default function Chat() {
         fileName: file.name,
         fileType: uploadType,
         fileBytes: intendedBytes,
+        pageCount: previewFacts.pageCount,
+        textChars: previewFacts.textChars,
         previewUrl,
       };
       attachedFileRef.current = attachment;
@@ -527,6 +532,8 @@ export default function Chat() {
         hasImageAttachment: hasImage,
         hasFileAttachment: hasFile,
         attachmentBytes: currentAttachment?.fileBytes,
+        ...(currentAttachment?.pageCount != null ? { attachmentPageCount: currentAttachment.pageCount } : {}),
+        ...(currentAttachment?.textChars != null ? { attachmentTextChars: currentAttachment.textChars } : {}),
         ragHinted: true,
       });
 
@@ -582,6 +589,8 @@ export default function Chat() {
             attachmentFileName: currentAttachment.fileName,
             attachmentFileType: currentAttachment.fileType,
             attachmentBytes: currentAttachment.fileBytes,
+            ...(currentAttachment.pageCount != null ? { attachmentPageCount: currentAttachment.pageCount } : {}),
+            ...(currentAttachment.textChars != null ? { attachmentTextChars: currentAttachment.textChars } : {}),
           } : {}),
         }),
         signal: abortController.signal,
@@ -1033,18 +1042,6 @@ export default function Chat() {
                       <div className="opacity-80">{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</div>
                       <div className="opacity-80">{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</div>
                       <div className="opacity-80">{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</div>
-                      {(() => {
-                        const analysisCost = formatEnergyRange(attachEnergyEstimate);
-                        return analysisCost ? (
-                          <div className="flex items-center gap-1 pt-0.5 tabular-nums">
-                            <Zap className="h-3 w-3 shrink-0" />
-                            {t('chat.attachHint.energy', {
-                              cost: analysisCost,
-                              defaultValue: 'Analysis from ≈ {{cost}} Energy',
-                            })}
-                          </div>
-                        ) : null;
-                      })()}
                       <div className="my-1 border-t border-background/20" />
                       {attachQuota?.unlimited ? (
                         <div className="opacity-80">{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</div>
