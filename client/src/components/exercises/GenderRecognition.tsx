@@ -10,6 +10,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { MasteryIndicator } from '@/components/vocabulary/VocabularyDictionaryIndicators';
 
 export interface GenderRecognitionQuestion {
   id: string;
@@ -324,19 +325,10 @@ export function GenderRecognitionExercise({ title, instructions, questions, exer
                       })}
                     </div>
 
-                    {/* Progress indicator - nur Zahlen (1/3, 2/3) oder Stern bei Meisterung */}
+                    {/* Progress indicator: 0 grey, 1-2 in progress, 3+ mastered */}
                     {questionProgress && (
                       <div className="flex items-center gap-2 mt-1">
-                        {correctCount >= 3 ? (
-                          <Badge className="bg-yellow-500 text-white gap-1">
-                            <Star className="h-3 w-3 fill-white" />
-                            Mastered
-                          </Badge>
-                        ) : correctCount > 0 ? (
-                          <Badge variant="outline" className="text-sm">
-                            {correctCount}/3
-                          </Badge>
-                        ) : null}
+                        <MasteryIndicator correctCount={correctCount} mastered={correctCount >= 3} />
                       </div>
                     )}
 

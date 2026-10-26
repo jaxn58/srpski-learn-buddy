@@ -159,7 +159,9 @@ export default function Progress() {
   useEffect(() => {
     if (!user || didAwardBadgesRef.current) return;
     didAwardBadgesRef.current = true;
-    void checkAndAwardBadges({}).catch(() => {});
+    void checkAndAwardBadges({}).catch((error) => {
+      console.error("[Progress] Failed to catch up badges:", error);
+    });
   }, [user, checkAndAwardBadges]);
 
   const completedUnits: number[] = stats?.completedUnits || [];
@@ -378,7 +380,9 @@ export default function Progress() {
 
     didLegacyBackfillRef.current = true;
     backfillDailyActivity({})
-      .catch(() => {});
+      .catch((error) => {
+        console.error("[Progress] Failed to backfill daily activity:", error);
+      });
   }, [activityRange, totalXP, hasAnyActivity, activity30Stats?.activeDays, backfillDailyActivity]);
 
   // If Lifetime activity is present but does not sum up to totalXP, reconcile once (best-effort).
@@ -392,7 +396,9 @@ export default function Progress() {
 
     didReconcileRef.current = true;
     backfillDailyActivity({})
-      .catch(() => {});
+      .catch((error) => {
+        console.error("[Progress] Failed to reconcile daily activity:", error);
+      });
   }, [activityRange, totalXP, selectedXpSum, selectedActivity, backfillDailyActivity]);
 
   if (!user) {

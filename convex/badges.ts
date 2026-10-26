@@ -102,6 +102,15 @@ export async function awardDueBadgesForUser(
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .first();
 
+  // "First Steps" means a block in the Exercises section was submitted. The
+  // visible Exercises section (InteractiveTest) records every answer, right or
+  // wrong, in questionProgress and never writes exerciseCompletions, so that
+  // table alone made the badge unreachable. exerciseCompletions stays as a
+  // fallback for the legacy exercise components.
+  const anyAnsweredQuestion = await ctx.db
+    .query("questionProgress")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .first();
   const anyCompletion = await ctx.db
     .query("exerciseCompletions")
     .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -122,7 +131,7 @@ export async function awardDueBadgesForUser(
   ] as const;
 
   const badges: Array<{ id: string; condition: () => boolean }> = [
-    { id: "first_steps", condition: () => anyCompletion !== null },
+    { id: "first_steps", condition: () => anyAnsweredQuestion !== null || anyCompletion !== null },
     { id: "unit_complete", condition: () => completedUnits >= 1 },
     { id: "five_units", condition: () => completedUnits >= 5 },
     { id: "ten_units", condition: () => completedUnits >= 10 },

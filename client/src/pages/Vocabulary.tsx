@@ -21,6 +21,7 @@ import type { SupportedLanguage } from "@shared/const";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
+import { MasteryIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
 import { toast } from "sonner";
 import { GamificationModal } from "@/components/GamificationModal";
 import { BuddyHelpHint } from "@/components/BuddyHelpHint";
@@ -1233,49 +1234,20 @@ export default function Vocabulary() {
                 {(mode === 'quiz' || mode === 'learn') && (
                   <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                     {(() => {
-                      // Get correct and incorrect counts with fallback
                       const correctCount = currentWordProgress?.correctAnswerCount ?? 0;
                       const incorrectCount = currentWordProgress?.incorrectAnswerCount ?? 0;
-                      
-                      // Wenn 3x richtig beantwortet: goldener Stern
-                      if (correctCount >= 3) {
-                        return (
-                          <Badge className="bg-yellow-500 text-white gap-1">
-                            <Star className="h-3 w-3 fill-white text-white" />
-                            {t("common.mastered")}
-                          </Badge>
-                        );
-                      }
-                      
-                      // Anzeige fuer richtige Antworten
-                      if (correctCount > 0) {
-                        return (
-                          <>
-                            <Badge variant="outline" className="text-sm">
-                              {correctCount}/3
+
+                      return (
+                        <>
+                          <MasteryIndicator correctCount={correctCount} mastered={correctCount >= 3} />
+                          {incorrectCount > 0 && (
+                            <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
+                              <XCircle className="h-3 w-3" />
+                              {incorrectCount} {t("vocabulary.incorrect")}
                             </Badge>
-                            {incorrectCount > 0 && (
-                              <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
-                                <XCircle className="h-3 w-3" />
-                                {incorrectCount} {t("vocabulary.incorrect")}
-                              </Badge>
-                            )}
-                          </>
-                        );
-                      }
-                      
-                      // Nur falsche Antworten (noch nie richtig)
-                      if (incorrectCount > 0) {
-                        return (
-                          <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
-                            <XCircle className="h-3 w-3" />
-                            {incorrectCount} {t("vocabulary.incorrect")}
-                          </Badge>
-                        );
-                      }
-                      
-                      // Noch nie beantwortet: nichts anzeigen
-                      return null;
+                          )}
+                        </>
+                      );
                     })()}
                   </div>
                 )}

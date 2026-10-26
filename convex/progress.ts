@@ -865,6 +865,25 @@ export const getDashboardStats = query({
       }
     }
 
+    // 5. Exercises section (InteractiveTest). Each block stores one row per
+    // question in questionProgress, including wrong answers, so a block that
+    // earns XP also feeds the accuracy score. exerciseQuestionProgress above
+    // only holds data from the legacy exercise components and stays additive.
+    const interactiveProgress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const qp of interactiveProgress) {
+      totalCorrect += qp.correctAttempts || 0;
+      totalIncorrect += qp.incorrectAttempts || 0;
+
+      if (qp.isMastered) {
+        masteredCorrect += qp.correctAttempts || 0;
+        masteredIncorrect += qp.incorrectAttempts || 0;
+      }
+    }
+
     return {
       // Gamification
       totalXP: user.totalXP || 0,
