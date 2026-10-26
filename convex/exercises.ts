@@ -431,6 +431,10 @@ export const recordExerciseQuestionAnswer = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
+    if (!(await checkUnitAccess(ctx, args.unitNumber))) {
+      throw new Error("UNIT_LOCKED");
+    }
+
     // Update last activity timestamp on progress (for admin Student Progress view)
     const progress = await ctx.db
       .query("userProgress")

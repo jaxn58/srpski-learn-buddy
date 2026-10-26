@@ -7,9 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { BookOpen, CheckCircle2, Brain, Lightbulb, Star, MessageSquare, Mic, PenTool, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { UnitContentAudioMarkdown } from "@/components/UnitContentAudioMarkdown";
 // Sidebar import removed
@@ -230,6 +230,8 @@ export default function UnitView() {
   const { t, i18n } = useTranslation();
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
+  const [, setLocation] = useLocation();
+  const unitNumberValid = Number.isInteger(unitNumber) && unitNumber > 0;
   const { openBuddyModal } = useBuddyModal();
   
   // Use user's learning language or fallback.
@@ -449,12 +451,16 @@ export default function UnitView() {
   // Progress hooks
   const progress = useQuery(api.progress.getUserProgress);
   const masteryStatus = useQuery(api.progress.getUnitMasteryStatus, { unitNumber });
+  const unitAccess = useQuery(api.units.getUnitAccess, unitNumberValid ? { unitNumber } : "skip");
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
   const unitCatalog = useQuery(api.units.getAllUnitsMetadata, { language: contentLng });
   const [isScrolled, setIsScrolled] = React.useState(false);
 
   // Derived values
+  const accessPending =
+    unitNumberValid && (unitAccess === undefined || unitAccess.allowed === false);
   const isLoading =
+    accessPending ||
     unitMetadata === undefined ||
     content === undefined ||
     unitCatalog === undefined ||
@@ -462,9 +468,7 @@ export default function UnitView() {
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const isMastered = masteryStatus?.isMastered ?? false;
   // Beta unit access is governed by the admin-tunable beta unit limit.
-  const isStaff = user?.role === "admin" || user?.role === "superadmin";
   const betaCap = accessInfo?.isBeta ? accessInfo.maxUnits : null;
-  const isLocked = !isStaff && betaCap !== null && unitNumber > betaCap;
 
   const publishedUnitNumbers = new Set(
     ((unitCatalog ?? []) as Array<{ unitNumber?: number | null }>)
@@ -486,6 +490,12 @@ export default function UnitView() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  React.useEffect(() => {
+    if (!unitAccess || unitAccess.allowed) return;
+    const reason = unitAccess.reason ?? "curriculum";
+    setLocation(`/units?locked=${unitNumber}&reason=${reason}`, { replace: true });
+  }, [unitAccess, unitNumber, setLocation]);
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen p-4 md:p-6 lg:p-8 space-y-6">
@@ -502,27 +512,6 @@ export default function UnitView() {
 
   if (!user || !unitMetadata) {
     return <div className="min-h-screen flex items-center justify-center">{t('unit.notFound')}</div>;
-  }
-
-  if (isLocked) {
-    return (
-      <AnimatedPage className="md:[&_[data-slot=card-header]]:px-9 md:[&_[data-slot=card-content]]:px-9 md:[&_[data-slot=card-footer]]:px-9">
-        <div className="flex-1 p-8 flex items-center justify-center">
-          <Card className="max-w-md border-yellow-200 bg-yellow-50">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-yellow-600">
-                <Lock className="h-6 w-6" />
-                <CardTitle>{t('unit.lockedTitle')}</CardTitle>
-              </div>
-              <CardDescription>{t('unit.lockedDesc')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/dashboard"><Button>{t('unit.backToDashboard')}</Button></Link>
-            </CardContent>
-          </Card>
-        </div>
-      </AnimatedPage>
-    );
   }
 
   const unitDescription =

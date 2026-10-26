@@ -1,6 +1,7 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { awardDueBadgesForUser } from "../badges";
+import { checkUnitAccess } from "../units";
 import { evaluateUnitCompletion } from "../../shared/learning/unitCompletion";
 import {
   isUnitUnlockedByModule,
@@ -107,6 +108,10 @@ export async function markUnitCompletedIfReady(
     language: "en" | "de";
   },
 ): Promise<{ unitCompleted: boolean }> {
+  if (!(await checkUnitAccess(ctx, args.unitNumber))) {
+    return { unitCompleted: false };
+  }
+
   const evaluation = await evaluateUserUnitCompletion(ctx, args.userId, args.unitNumber, args.language);
   if (!evaluation.complete) return { unitCompleted: false };
 

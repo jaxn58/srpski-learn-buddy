@@ -10,6 +10,15 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useEffect, useState, useMemo } from "react";
+import { toast } from "sonner";
+
+type UnitLockReason = "curriculum" | "plan" | "unavailable";
+
+type UnitLockState = {
+  unitNumber: number;
+  locked: boolean;
+  reason: UnitLockReason | null;
+};
 
 // Local shapes for Convex query results (return types are lost through
 // TS2589 @ts-ignore workarounds in convex/modules.ts / convex/units.ts).
@@ -51,14 +60,16 @@ export default function Units() {
   const [location] = useLocation();
   const progress = useQuery(api.progress.getUserProgress);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
-
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const lockStates = useQuery(api.units.getUnitLockStates) as UnitLockState[] | undefined;
   const completedUnits = progress?.completedUnits || [];
 
-  // Beta unit access is governed by the admin-tunable beta unit limit.
-  const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
-  const isBetaLimited = Boolean(accessInfo?.isBeta);
-  const betaMaxUnits = accessInfo?.maxUnits ?? 0;
+  const lockByUnit = useMemo(() => {
+    const map = new Map<number, boolean>();
+    for (const row of lockStates ?? []) {
+      map.set(row.unitNumber, row.locked);
+    }
+    return map;
+  }, [lockStates]);
 
   // Load modules from database (new consolidated structure)
   const dbModules = useQuery(api.modules.getAllModulesConsolidated);
@@ -188,11 +199,32 @@ export default function Units() {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const locked = params.get("locked");
+    if (!locked) return;
+    const parsed = Number(locked);
+    const number = Number.isFinite(parsed) ? parsed : locked;
+    const reason = params.get("reason");
+    const key: UnitLockReason =
+      reason === "plan" || reason === "unavailable" ? reason : "curriculum";
+    toast.info(t(`units.lockedRedirect.${key}`, { number }));
+    params.delete("locked");
+    params.delete("reason");
+    const qs = params.toString();
+    const hash = window.location.hash;
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${qs ? `?${qs}` : ""}${hash}`,
+    );
+  }, [t]);
+
   return (
     <AnimatedPage>
       <div className="space-y-8">
         <div className="space-y-6">
-          {modules.map((module: ModuleView) => {
+          {lockStates !== undefined && modules.map((module: ModuleView) => {
             // Load units from database only
             const moduleUnits = unitsByModule[module.id] || [];
             
@@ -204,20 +236,8 @@ export default function Units() {
             // Calculate progress from DB units
             const moduleProgress = getModuleProgressFromDB(module.id, completedUnits);
             
-            // Check if module is locked: for beta testers a module is locked
-            // when all of its units lie beyond the beta unit limit.
-            const moduleMinUnit = moduleUnits.length > 0
-              ? Math.min(...moduleUnits.map((u) => u.number))
-              : Number.POSITIVE_INFINITY;
-            const openModules = (progress as { openModuleNumbers?: number[] } | null)?.openModuleNumbers;
-            const isModuleLockedByCurriculum =
-              !isAdmin &&
-              Array.isArray(openModules) &&
-              openModules.length > 0 &&
-              !openModules.includes(module.number);
-            const isModuleLocked =
-              isModuleLockedByCurriculum ||
-              (!isAdmin && isBetaLimited && moduleMinUnit > betaMaxUnits);
+            const isUnitLocked = (unitNumber: number) => lockByUnit.get(unitNumber) !== false;
+            const isModuleLocked = moduleUnits.every((unit) => isUnitLocked(unit.number));
             
             // Get module title and description based on language
             const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
@@ -309,9 +329,7 @@ export default function Units() {
                       <AccordionContent>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                           {moduleUnits.map((unit) => {
-                            const locked =
-                              isModuleLocked ||
-                              (!isAdmin && isBetaLimited && unit.number > betaMaxUnits);
+                            const locked = isUnitLocked(unit.number);
                             const isCurrent = progress?.currentUnit === unit.number;
                             const isCompleted = completedUnits.includes(unit.number);
                             const isMastered = masteredUnits?.includes(unit.number);

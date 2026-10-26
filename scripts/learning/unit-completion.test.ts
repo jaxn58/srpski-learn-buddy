@@ -7,6 +7,7 @@ import {
   nextRecommendedUnit,
   type PlannedUnit,
 } from "../../shared/learning/moduleUnlock";
+import { evaluateUnitAccess, type UnitAccessFacts } from "../../shared/learning/unitAccess";
 
 const module1: PlannedUnit[] = [
   { unitNumber: 1, moduleNumber: 1, unitType: "standard" },
@@ -96,5 +97,89 @@ describe("module unlock", () => {
     expect(nextRecommendedUnit({ completedUnits: [], units: module1 })).toBe(1);
     expect(nextRecommendedUnit({ completedUnits: [1], units: module1 })).toBe(2);
     expect(nextRecommendedUnit({ completedUnits: [1, 2, 11, 12], units: module1 })).toBe(13);
+  });
+});
+
+function accessFacts(overrides: Partial<UnitAccessFacts> = {}): UnitAccessFacts {
+  return {
+    unitNumber: 13,
+    role: "user",
+    hasFeatureTierOverride: false,
+    totalUnits: 27,
+    isOffline: false,
+    hasActiveSubscription: true,
+    subscriptionPlanType: "beta",
+    maxAccessibleUnits: null,
+    isBetaTester: true,
+    betaMaxUnits: 27,
+    completedUnits: [],
+    plannedUnits: module1,
+    ...overrides,
+  };
+}
+
+describe("evaluateUnitAccess", () => {
+  it("locks a beta tester out of the next module", () => {
+    expect(evaluateUnitAccess(accessFacts())).toEqual({
+      allowed: false,
+      reason: "curriculum",
+    });
+  });
+
+  it("lets a beta tester open a unit in an open module", () => {
+    expect(evaluateUnitAccess(accessFacts({ unitNumber: 2 }))).toEqual({
+      allowed: true,
+      reason: null,
+    });
+  });
+
+  it("keeps a paid subscription behind the same curriculum gate", () => {
+    expect(
+      evaluateUnitAccess(
+        accessFacts({
+          subscriptionPlanType: "course",
+          isBetaTester: false,
+          betaMaxUnits: 0,
+        }),
+      ),
+    ).toEqual({ allowed: false, reason: "curriculum" });
+  });
+
+  it("reports the beta cap as a plan lock before the curriculum lock", () => {
+    expect(evaluateUnitAccess(accessFacts({ betaMaxUnits: 12 }))).toEqual({
+      allowed: false,
+      reason: "plan",
+    });
+  });
+
+  it("allows admins and feature-tier overrides", () => {
+    expect(evaluateUnitAccess(accessFacts({ role: "admin" })).allowed).toBe(true);
+    expect(evaluateUnitAccess(accessFacts({ role: "superadmin" })).allowed).toBe(true);
+    expect(evaluateUnitAccess(accessFacts({ hasFeatureTierOverride: true })).allowed).toBe(true);
+  });
+
+  it("denies an override past the published unit count", () => {
+    expect(
+      evaluateUnitAccess(
+        accessFacts({ hasFeatureTierOverride: true, unitNumber: 40, totalUnits: 27 }),
+      ),
+    ).toEqual({ allowed: false, reason: "plan" });
+  });
+
+  it("keeps an already completed unit open even when its module is locked", () => {
+    expect(evaluateUnitAccess(accessFacts({ completedUnits: [13] }))).toEqual({
+      allowed: true,
+      reason: null,
+    });
+  });
+
+  it("hides offline units from learners", () => {
+    expect(evaluateUnitAccess(accessFacts({ unitNumber: 2, isOffline: true }))).toEqual({
+      allowed: false,
+      reason: "unavailable",
+    });
+    expect(evaluateUnitAccess(accessFacts({ unitNumber: 2, isOffline: true, role: "admin" })).allowed).toBe(
+      true,
+    );
   });
 });

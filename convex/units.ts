@@ -3,7 +3,9 @@ import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { loadBetaMaxUnits } from "./platform";
-import { isUnitUnlockedByModule, loadPlannedUnits } from "./lib/unitProgress";
+import { loadPlannedUnits } from "./lib/unitProgress";
+import { evaluateUnitAccess, type UnitAccessDecision, type UnitLockReason } from "../shared/learning/unitAccess";
+import type { PlannedUnit } from "../shared/learning/moduleUnlock";
 // TS2589 suppression applied – see scripts/add-ts-expect-errors.mjs
 
 /**
@@ -118,76 +120,183 @@ export const setUnitOffline = mutation({
   },
 });
 
-// Helper to check unit access
+type AccessUser = {
+  _id: Id<"users">;
+  role?: string;
+  featureTierOverride?: unknown;
+  isBetaTester?: boolean;
+};
+
+type UnitMetadataAccessRow = {
+  unitNumber: number;
+  language?: string;
+  isOffline?: boolean;
+  releaseStatus?: string;
+};
+
+type UnitAccessContext = {
+  role: string | null;
+  hasFeatureTierOverride: boolean;
+  totalUnits: number;
+  isBetaTester: boolean;
+  betaMaxUnits: number;
+  hasActiveSubscription: boolean;
+  subscriptionPlanType: string | null;
+  maxAccessibleUnits: number | null;
+  completedUnits: number[];
+  plannedUnits: PlannedUnit[];
+  offlineUnitNumbers: Set<number>;
+  visibleUnitNumbers: number[];
+};
+
+function visibleUnitNumbersFor(
+  rows: UnitMetadataAccessRow[],
+  user: AccessUser,
+): number[] {
+  const allowPreview = user.role === "superadmin";
+  const allowOffline = user.role === "admin" || user.role === "superadmin";
+  const numbers = new Set<number>();
+  for (const row of rows) {
+    if (row.language !== "en") continue;
+    if (!allowOffline && row.isOffline === true) continue;
+    const status = row.releaseStatus;
+    if (status === "offline") continue;
+    const visible = allowPreview
+      ? isPreviewStatus(status) || isPublishedStatus(status)
+      : isPublishedStatus(status);
+    if (visible) numbers.add(row.unitNumber);
+  }
+  return [...numbers].sort((a, b) => a - b);
+}
+
+async function loadUnitAccessContext(
+  ctx: QueryCtx | MutationCtx,
+  user: AccessUser,
+): Promise<UnitAccessContext> {
+  const [subscription, betaMaxUnits, totalUnits, progress, plannedUnits, metadataRows] =
+    await Promise.all([
+      ctx.db
+        .query("userSubscriptions")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first(),
+      loadBetaMaxUnits(ctx),
+      getTotalUnitsCount(ctx),
+      ctx.db
+        .query("userProgress")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .first(),
+      loadPlannedUnits(ctx),
+      ctx.db.query("unitMetadata").collect(),
+    ]);
+
+  const rows = metadataRows as UnitMetadataAccessRow[];
+  const offlineUnitNumbers = new Set<number>();
+  for (const row of rows) {
+    if (row.isOffline === true) offlineUnitNumbers.add(row.unitNumber);
+  }
+
+  const rawMax = subscription?.maxAccessibleUnits;
+  const completedUnits = (progress?.completedUnits ?? []).filter(
+    (n: number) => Number.isInteger(n) && n > 0,
+  );
+
+  return {
+    role: user.role ?? null,
+    hasFeatureTierOverride: Boolean(user.featureTierOverride),
+    totalUnits,
+    isBetaTester: Boolean(user.isBetaTester),
+    betaMaxUnits,
+    hasActiveSubscription: Boolean(subscription),
+    subscriptionPlanType: subscription?.planType ?? null,
+    maxAccessibleUnits: typeof rawMax === "number" && rawMax > 0 ? rawMax : null,
+    completedUnits,
+    plannedUnits,
+    offlineUnitNumbers,
+    visibleUnitNumbers: visibleUnitNumbersFor(rows, user),
+  };
+}
+
+function decideUnitAccess(context: UnitAccessContext, unitNumber: number): UnitAccessDecision {
+  return evaluateUnitAccess({
+    unitNumber,
+    role: context.role,
+    hasFeatureTierOverride: context.hasFeatureTierOverride,
+    totalUnits: context.totalUnits,
+    isOffline: context.offlineUnitNumbers.has(unitNumber),
+    hasActiveSubscription: context.hasActiveSubscription,
+    subscriptionPlanType: context.subscriptionPlanType,
+    maxAccessibleUnits: context.maxAccessibleUnits,
+    isBetaTester: context.isBetaTester,
+    betaMaxUnits: context.betaMaxUnits,
+    completedUnits: context.completedUnits,
+    plannedUnits: context.plannedUnits,
+  });
+}
+
+const unitLockReasonValidator = v.union(
+  v.literal("curriculum"),
+  v.literal("plan"),
+  v.literal("unavailable"),
+);
+
+// Helper to check unit access. Same decision as the unit overview.
 export async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
   const user = await getCurrentUser(ctx);
   if (!user) {
     return false;
   }
-
-  // Admins have full access
-  if (user.role === "admin" || user.role === "superadmin") {
-    return true;
-  }
-
-  // Staff QA and admin-assigned tiers can read every published unit.
-  // The unit list already exposes them; hiding the section text looks like deleted content.
-  if (user.featureTierOverride) {
-    const totalUnits = await getTotalUnitsCount(ctx);
-    return unitNumber <= totalUnits;
-  }
-
-  // Offline units are hidden for students
-  if (await isUnitOffline(ctx, unitNumber)) {
-    return false;
-  }
-
-  // Check for active subscription
-  const subscription = await ctx.db
-    .query("userSubscriptions")
-    .withIndex("by_user", (q) => q.eq("userId", user._id))
-    .filter((q) => q.eq(q.field("status"), "active"))
-    .first();
-
-  const betaMaxUnits = await loadBetaMaxUnits(ctx);
-
-  // Beta subscriptions are hard-capped by the admin-tunable beta unit limit.
-  if (subscription?.planType === "beta") {
-    return unitNumber <= betaMaxUnits;
-  }
-
-  if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
-    return true;
-  }
-
-  // Get total units count dynamically from database
-  const totalUnits = await getTotalUnitsCount(ctx);
-
-  // Paid subscriptions get full access (if within total course length).
-  // Beta subscriptions already returned above, so any remaining sub is paid.
-  if (subscription && unitNumber <= totalUnits) {
-    return true;
-  }
-
-  // Fallback: Beta Tester Flag (governed by the beta unit limit).
-  if (user.isBetaTester) {
-    return unitNumber <= betaMaxUnits;
-  }
-
-  // No course access: only unit 1 and units already reached by progress.
-  const progress = await ctx.db
-    .query("userProgress")
-    .withIndex("by_user", (q) => q.eq("userId", user._id))
-    .first();
-  const completedUnits = progress?.completedUnits ?? [];
-  const planned = await loadPlannedUnits(ctx);
-  return (
-    completedUnits.includes(unitNumber) ||
-    (planned.length > 0
-      ? isUnitUnlockedByModule({ unitNumber, completedUnits, units: planned })
-      : unitNumber === 1 || completedUnits.includes(unitNumber - 1))
-  );
+  const context = await loadUnitAccessContext(ctx, user);
+  return decideUnitAccess(context, unitNumber).allowed;
 }
+
+// Direct unit view: why a unit is open or locked for the current user.
+export const getUnitAccess = query({
+  args: {
+    unitNumber: v.number(),
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.union(unitLockReasonValidator, v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return { allowed: false, reason: "plan" as const };
+    }
+    const context = await loadUnitAccessContext(ctx, user);
+    const decision = decideUnitAccess(context, args.unitNumber);
+    return {
+      allowed: decision.allowed,
+      reason: decision.allowed ? null : decision.reason,
+    };
+  },
+});
+
+// Unit overview: one lock decision per published unit, from the same rules.
+export const getUnitLockStates = query({
+  returns: v.array(
+    v.object({
+      unitNumber: v.number(),
+      locked: v.boolean(),
+      reason: v.union(unitLockReasonValidator, v.null()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const context = await loadUnitAccessContext(ctx, user);
+    return context.visibleUnitNumbers.map((unitNumber) => {
+      const decision = decideUnitAccess(context, unitNumber);
+      const reason: UnitLockReason | null = decision.allowed ? null : decision.reason;
+      return {
+        unitNumber,
+        locked: !decision.allowed,
+        reason,
+      };
+    });
+  },
+});
 
 // Get unit metadata for a specific language
 // @ts-ignore TS2589 – Convex schema depth limit (50 tables)

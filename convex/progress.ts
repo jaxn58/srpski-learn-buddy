@@ -18,7 +18,8 @@ import {
   loadPlannedUnits,
   markUnitCompletedIfReady,
 } from "./lib/unitProgress";
-import { buildModuleGates, isModuleOpen, isUnitUnlockedByModule, nextRecommendedUnit } from "../shared/learning/moduleUnlock";
+import { isUnitUnlockedByModule, nextRecommendedUnit } from "../shared/learning/moduleUnlock";
+import { checkUnitAccess } from "./units";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -98,10 +99,6 @@ export const getUserProgress = query({
       planned.length > 0
         ? nextRecommendedUnit({ completedUnits, units: planned })
         : correctCurrentUnit;
-    const gates = planned.length > 0 ? buildModuleGates(planned) : [];
-    const openModuleNumbers = gates
-      .filter((g) => isModuleOpen({ moduleNumber: g.moduleNumber, completedUnits, gates }))
-      .map((g) => g.moduleNumber);
     const lockedUnitNumbers =
       planned.length > 0
         ? planned
@@ -121,7 +118,6 @@ export const getUserProgress = query({
       ...progress,
       currentUnit: recommended ?? correctCurrentUnit,
       recommendedUnit: recommended,
-      openModuleNumbers,
       lockedUnitNumbers,
     };
   },
@@ -185,6 +181,10 @@ export const completeUnit = mutation({
     if (!user) {
       console.error(`[Progress] completeUnit: User not authenticated`);
       throw new Error("Not authenticated");
+    }
+
+    if (!(await checkUnitAccess(ctx, args.unitNumber))) {
+      throw new Error("UNIT_LOCKED");
     }
 
     // Preview units are read-only (no progress writes)
@@ -533,6 +533,10 @@ export const submitCategoryResult = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
+
+    if (!(await checkUnitAccess(ctx, args.unitNumber))) {
+      throw new Error("UNIT_LOCKED");
+    }
 
     // Preview units are read-only (no XP/progress writes). Still return a successful response
     // so the UI can show correctness feedback without persisting anything.
