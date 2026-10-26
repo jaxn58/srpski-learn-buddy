@@ -78,6 +78,10 @@ export function LandingSsg(props: {
               dangerouslySetInnerHTML={{ __html: heroDescriptionHtml }}
             />
 
+            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
+              {t("home.guarantee.line")}
+            </p>
+
             <div className="flex flex-wrap gap-3 sm:gap-4 justify-center pt-4">
               <a
                 href="/sign-in"
@@ -170,7 +174,10 @@ export function LandingSsg(props: {
         </section>
       </main>
       <footer className="w-full border-t">
-        <div className="container py-8">
+        <div className="container py-8 space-y-3">
+          <p className="text-center text-sm text-muted-foreground max-w-2xl mx-auto">
+            {t("home.guarantee.line")}
+          </p>
           <p className="text-center text-sm font-semibold text-muted-foreground">
             {t("home.footer.copyright", { year: new Date().getFullYear() })}
           </p>

@@ -95,11 +95,13 @@ async function main() {
   const { counts, modulesData } = await fetchLandingData(convexUrl);
 
   const heroDescriptionPlain = stripHtml(showWaitlist ? t("home.hero.descriptionWaitlist") : t("home.hero.description", counts));
+  const guaranteePlain = stripHtml(t("home.guarantee.line"));
+  const metaDescription = `${heroDescriptionPlain} ${guaranteePlain}`.trim();
   const title = t("app.title") || "Serbian AI Tutor";
 
   const headTags: string[] = [];
   headTags.push(`<title>${escapeHtml(title)}</title>`);
-  headTags.push(`<meta name="description" content="${escapeHtml(heroDescriptionPlain)}" />`);
+  headTags.push(`<meta name="description" content="${escapeHtml(metaDescription)}" />`);
   if (isBetaEnv) {
     // Closed beta on beta.learn-with.me must never be indexed as a duplicate of the live site.
     // The same index.html is served for every route (SPA rewrite in vercel.json), so this
@@ -117,10 +119,10 @@ async function main() {
 
   headTags.push(`<meta property="og:type" content="website" />`);
   headTags.push(`<meta property="og:title" content="${escapeHtml(title)}" />`);
-  headTags.push(`<meta property="og:description" content="${escapeHtml(heroDescriptionPlain)}" />`);
+  headTags.push(`<meta property="og:description" content="${escapeHtml(metaDescription)}" />`);
   headTags.push(`<meta name="twitter:card" content="summary_large_image" />`);
   headTags.push(`<meta name="twitter:title" content="${escapeHtml(title)}" />`);
-  headTags.push(`<meta name="twitter:description" content="${escapeHtml(heroDescriptionPlain)}" />`);
+  headTags.push(`<meta name="twitter:description" content="${escapeHtml(metaDescription)}" />`);
   if (siteUrl) {
     headTags.push(`<meta name="twitter:image" content="${escapeHtml(siteUrl + "/og-image.png")}" />`);
   }
@@ -139,7 +141,7 @@ async function main() {
     "@context": "https://schema.org",
     "@type": "Course",
     name: title,
-    description: heroDescriptionPlain,
+    description: metaDescription,
     provider: {
       "@type": "Organization",
       name: "JACKSENN.ME",

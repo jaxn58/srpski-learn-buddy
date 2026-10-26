@@ -15,6 +15,7 @@ export function AppFooter({ className, lng }: { className?: string; lng?: "en" |
     >
       <div className="container py-8">
         <div className="flex flex-col items-center gap-3 text-center text-sm text-muted-foreground">
+          <p className="max-w-2xl">{t("home.guarantee.line", options)}</p>
           <nav
             className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
             aria-label="Legal links"

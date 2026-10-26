@@ -31,6 +31,7 @@ import { useFeatureAccess, canUseLearning } from "@/hooks/useFeatureAccess";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, UserCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { MySubscriptionContent } from "./MySubscription";
 import { GamificationModal } from "@/components/GamificationModal";
 import { Link, useLocation } from "wouter";
@@ -88,7 +89,7 @@ async function processAvatarImage(file: File): Promise<Blob> {
 
 export default function Profile() {
   const { user, loading } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { setLanguage } = useLanguage();
   const { signOut } = useClerkAuth();
   const [, navigate] = useLocation();
@@ -97,6 +98,8 @@ export default function Profile() {
   const generateAvatarUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
   const setPublicAvatarFromUpload = useMutation(api.users.setPublicAvatarFromUpload);
   const deleteMyAccount = useAction(api.users.deleteMyAccount);
+  const deleteMyAccountWithRefund = useAction(api.accountDeletion.deleteMyAccountWithRefund);
+  const deletionState = useQuery(api.accountDeletion.getMyDeletionState, user ? {} : "skip");
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const communityStatus = useQuery(api.newsletter.getMyCommunityUpdatesStatus, user ? {} : "skip");
   const featureAccess = useFeatureAccess();
@@ -109,6 +112,7 @@ export default function Profile() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteEmailInput, setDeleteEmailInput] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   const [nickname, setNickname] = useState("");
@@ -227,23 +231,38 @@ export default function Profile() {
 
   const handleDeleteAccountConfirm = async () => {
     const trimmed = deleteEmailInput.trim();
-    if (!trimmed) return;
+    if (!trimmed || !deletionState) return;
 
     setDeleting(true);
     try {
-      const result = await deleteMyAccount({ confirmationEmail: trimmed });
+      const result =
+        deletionState.mode === "refund"
+          ? await deleteMyAccountWithRefund({
+              confirmationEmail: trimmed,
+              reason: deleteReason.trim() || undefined,
+            })
+          : await deleteMyAccount({ confirmationEmail: trimmed });
+
+      const outcome = "outcome" in result ? result.outcome : undefined;
+      if (result.success && outcome === "pending") {
+        toast.info(t("profile.deleteAccount.toast.refund_pending"));
+        setDeleteDialogOpen(false);
+        setDeleting(false);
+        return;
+      }
 
       if (!result.success) {
-        // The backend surfaces specific reasons. Map known ones to localized
-        // toasts; fall back to the server-provided message or a generic one.
-        if (result.reason === "email_mismatch") {
+        const reason = result.reason;
+        if (reason === "refund_pending") {
+          toast.info(t("profile.deleteAccount.toast.refund_pending"));
+        } else if (reason === "email_mismatch") {
           toast.error(t("profile.deleteAccount.toastEmailMismatch"));
-        } else if (result.reason === "active_subscription") {
-          toast.error(t("profile.deleteAccount.toastActiveSubscription"));
+        } else if (reason) {
+          const key = `profile.deleteAccount.toast.${reason}`;
+          const translated = t(key);
+          toast.error(translated === key ? t("profile.deleteAccount.toastGeneric") : translated);
         } else {
-          toast.error(
-            result.message || t("profile.deleteAccount.toastGeneric")
-          );
+          toast.error(t("profile.deleteAccount.toastGeneric"));
         }
         setDeleting(false);
         return;
@@ -252,9 +271,6 @@ export default function Profile() {
       toast.success(t("profile.deleteAccount.toastSuccess"));
       setDeleteDialogOpen(false);
 
-      // Sign the user out of Clerk and redirect to the landing page. The
-      // server already deleted the Convex row + the Clerk user, so any
-      // remaining session will be rejected on the next request anyway.
       try {
         await signOut();
       } catch (err) {
@@ -262,11 +278,8 @@ export default function Profile() {
       }
       navigate("/");
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : t("profile.deleteAccount.toastGeneric");
-      toast.error(message);
+      console.error("[deleteMyAccount] failed", err);
+      toast.error(t("profile.deleteAccount.toastGeneric"));
       setDeleting(false);
     }
   };
@@ -631,15 +644,40 @@ export default function Profile() {
             <p className="text-sm text-muted-foreground">
               {t("profile.deleteAccount.description")}
             </p>
+            {deletionState?.mode === "paid_no_refund" && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {t("profile.deleteAccount.paidNoRefund")}
+                </p>
+                {deletionState.expiresAt != null && (
+                  <p className="text-sm font-medium">
+                    {t("profile.deleteAccount.accessUntil", {
+                      date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" }).format(
+                        new Date(deletionState.expiresAt),
+                      ),
+                    })}
+                  </p>
+                )}
+              </>
+            )}
+            {deletionState?.mode === "refund_pending" && (
+              <p className="text-sm text-muted-foreground">
+                {t("profile.deleteAccount.pending")}
+              </p>
+            )}
           </div>
           <Button
             variant="destructive"
+            disabled={!deletionState || deletionState.mode === "refund_pending"}
             onClick={() => {
               setDeleteEmailInput("");
+              setDeleteReason("");
               setDeleteDialogOpen(true);
             }}
           >
-            {t("profile.deleteAccount.button")}
+            {deletionState?.mode === "refund"
+              ? t("profile.deleteAccount.buttonRefund")
+              : t("profile.deleteAccount.button")}
           </Button>
         </CardContent>
       </Card>
@@ -649,18 +687,55 @@ export default function Profile() {
         onOpenChange={(open) => {
           if (deleting) return;
           setDeleteDialogOpen(open);
-          if (!open) setDeleteEmailInput("");
+          if (!open) {
+            setDeleteEmailInput("");
+            setDeleteReason("");
+          }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("profile.deleteAccount.dialog.title")}
+              {deletionState?.mode === "refund"
+                ? t("profile.deleteAccount.dialog.titleRefund")
+                : t("profile.deleteAccount.dialog.title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("profile.deleteAccount.dialog.body")}
+              {deletionState?.mode === "refund"
+                ? t("profile.deleteAccount.dialog.bodyRefund")
+                : deletionState?.mode === "paid_no_refund"
+                  ? t("profile.deleteAccount.paidNoRefund")
+                  : deletionState?.mode === "refund_completed"
+                    ? t("profile.deleteAccount.dialog.bodyRefundCompleted")
+                    : t("profile.deleteAccount.dialog.body")}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deletionState?.mode === "refund" && (
+            <div className="space-y-2 text-sm">
+              <p>
+                {deletionState.refundAmountCents != null
+                  ? t("profile.deleteAccount.dialog.amount", {
+                      amount: new Intl.NumberFormat(i18n.language, {
+                        style: "currency",
+                        currency: deletionState.currency || "EUR",
+                      }).format(deletionState.refundAmountCents / 100),
+                    })
+                  : t("profile.deleteAccount.dialog.amountUnknown")}
+              </p>
+              <p className="text-muted-foreground">
+                {t("profile.deleteAccount.dialog.refundConsequences")}
+              </p>
+            </div>
+          )}
+          {deletionState?.mode === "paid_no_refund" && deletionState.expiresAt != null && (
+            <p className="text-sm font-medium">
+              {t("profile.deleteAccount.accessUntil", {
+                date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" }).format(
+                  new Date(deletionState.expiresAt),
+                ),
+              })}
+            </p>
+          )}
           <div className="space-y-2 py-2">
             <Label htmlFor="delete-confirm-email">
               {t("profile.deleteAccount.dialog.emailLabel")}
@@ -678,6 +753,21 @@ export default function Profile() {
               disabled={deleting}
             />
           </div>
+          {deletionState?.mode === "refund" && (
+            <div className="space-y-2">
+              <Label htmlFor="delete-reason">
+                {t("profile.deleteAccount.dialog.reasonLabel")}
+              </Label>
+              <Textarea
+                id="delete-reason"
+                value={deleteReason}
+                maxLength={3000}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder={t("profile.deleteAccount.dialog.reasonPlaceholder")}
+                disabled={deleting}
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>
               {t("profile.deleteAccount.dialog.cancel")}
@@ -689,6 +779,8 @@ export default function Profile() {
               }}
               disabled={
                 deleting ||
+                !deletionState ||
+                deletionState.mode === "refund_pending" ||
                 deleteEmailInput.trim().toLowerCase() !==
                   (user.email ?? "").trim().toLowerCase() ||
                 !user.email
@@ -697,7 +789,9 @@ export default function Profile() {
             >
               {deleting
                 ? t("profile.deleteAccount.dialog.deleting")
-                : t("profile.deleteAccount.dialog.confirm")}
+                : deletionState?.mode === "refund"
+                  ? t("profile.deleteAccount.buttonRefund")
+                  : t("profile.deleteAccount.dialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

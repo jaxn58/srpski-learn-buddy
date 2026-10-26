@@ -16,10 +16,12 @@ import { v } from "convex/values";
 import { internalMutation } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const run = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     dryRun: v.boolean(),
     totalActive: v.number(),
@@ -31,7 +33,9 @@ export const run = internalMutation({
     const dryRun = args.dryRun !== false;
 
     const all = await ctx.db.query("courseVocabulary").collect();
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const active = all.filter(
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       (v) => v.isActive !== false && (v as any).releaseStatus !== "offline",
     );
 

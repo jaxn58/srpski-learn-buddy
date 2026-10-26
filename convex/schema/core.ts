@@ -185,7 +185,17 @@ export const coreTables = {
     /** Outstanding energy debt from a single overdraft action (cleared on top-up). */
     energyDebtBalance: v.optional(v.number()),
     energyPeriodResetAt: v.optional(v.number()),  // timestamp of the next monthly reset
-  }).index("by_user", ["userId"]),
+
+    // First successful plan payment. Set once; later instalments and upgrades do not overwrite it.
+    firstPaymentId: v.optional(v.string()),
+    firstPaidAt: v.optional(v.number()),
+    firstPaidAmountCents: v.optional(v.number()),
+    // Distinct plan checkouts (not instalment charges). Undefined on legacy rows.
+    planPurchaseCount: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_provider_subscription_id", ["providerSubscriptionId"])
+    .index("by_first_payment_id", ["firstPaymentId"]),
 
   // ============= SUBSCRIPTION HISTORY =============
   subscriptionHistory: defineTable({

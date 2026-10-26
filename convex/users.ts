@@ -5,6 +5,7 @@ import type { Id, Doc } from "./_generated/dataModel";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
 import { levelFromXp } from "./gamification";
+import { deleteClerkUser } from "./accountDeletion";
 
 type UserDoc = Doc<"users">;
 type FixUserNameResult = { success: boolean; userId: Id<"users">; name: string };
@@ -926,50 +927,12 @@ export const getUserByClerkIdForServer = action({
 // ============================================================================
 // SELF-SERVICE ACCOUNT DELETION (GDPR "Right to be forgotten")
 // ============================================================================
-// Internal query used by the `deleteMyAccount` action to fetch the caller's
-// user row and active subscription status in a single transaction.
-export const _internalGetMyAccountForDelete = internalQuery({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
-      .first();
-    if (!user) return null;
-
-    const subscriptions = await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .collect();
-
-    const activeSubscription =
-      subscriptions.find((s) => s.status === "active") ?? null;
-
-    return {
-      userId: user._id,
-      clerkId: user.clerkId,
-      email: user.email ?? null,
-      role: user.role,
-      activeSubscription: activeSubscription
-        ? {
-            planType: activeSubscription.planType,
-            expiresAt: activeSubscription.expiresAt,
-            autoRenew: activeSubscription.autoRenew,
-          }
-        : null,
-    };
-  },
-});
-
 /**
  * Lets an authenticated user delete their own account. Requires the user to
  * re-confirm their email address as a safeguard against accidental clicks.
- * Blocks deletion while an active paid subscription exists so we do not orphan
- * a running billing relationship — user must cancel first.
+ * A paid period inside the 7-day window must use deleteMyAccountWithRefund.
  *
- * Flow: verify identity → match confirmation email → guard subscription →
+ * Flow: verify identity → match confirmation email → snapshot billing facts →
  *       DELETE https://api.clerk.com/v1/users/:id → cascade-delete Convex data.
  *
  * After a successful return the frontend must call Clerk's signOut().
@@ -987,10 +950,10 @@ export const deleteMyAccount = action({
       | "not_authenticated"
       | "user_not_found"
       | "email_mismatch"
-      | "active_subscription"
+      | "refund_required"
+      | "refund_pending"
       | "clerk_delete_failed"
       | "no_api_key";
-    message?: string;
     deleted?: Record<string, number>;
     totalRows?: number;
   }> => {
@@ -999,98 +962,53 @@ export const deleteMyAccount = action({
       return { success: false, reason: "not_authenticated" };
     }
 
-    const account = await ctx.runQuery(
-      internal.users._internalGetMyAccountForDelete,
-      { clerkId: identity.subject }
-    );
+    const account: {
+      userFound: boolean;
+      userId?: Id<"users">;
+      email?: string | null;
+      mode?: string;
+    } = await ctx.runQuery(internal.accountDeletion.internalGetDeletionState, {
+      clerkId: identity.subject,
+    });
 
-    if (!account) {
+    if (!account.userFound || !account.userId) {
       return { success: false, reason: "user_not_found" };
     }
 
-    // Re-confirmation via email prevents one-click accidents. Compare
-    // case-insensitively and ignore surrounding whitespace.
     const expected = (account.email ?? "").trim().toLowerCase();
     const provided = args.confirmationEmail.trim().toLowerCase();
     if (!expected || expected !== provided) {
-      return {
-        success: false,
-        reason: "email_mismatch",
-        message:
-          "The entered email does not match your account email. Account was not deleted.",
-      };
+      return { success: false, reason: "email_mismatch" };
     }
 
-    // Protect billing state: users with an active subscription must cancel
-    // first. This avoids "orphan" subscriptions that keep charging after the
-    // account is gone and simplifies refunds/disputes.
-    if (account.activeSubscription) {
-      return {
-        success: false,
-        reason: "active_subscription",
-        message:
-          "You have an active subscription. Please cancel it before deleting your account.",
-      };
+    if (account.mode === "refund") {
+      return { success: false, reason: "refund_required" };
+    }
+    if (account.mode === "refund_pending") {
+      return { success: false, reason: "refund_pending" };
     }
 
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (!clerkSecretKey) {
-      console.error(
-        "[deleteMyAccount] CLERK_SECRET_KEY missing - aborting delete to avoid orphan"
-      );
-      return {
-        success: false,
-        reason: "no_api_key",
-        message:
-          "Server configuration error. Please contact support to delete your account.",
-      };
-    }
+    await ctx.runMutation(internal.accountDeletion.snapshotBilling, {
+      clerkId: identity.subject,
+    });
 
-    try {
-      const resp = await fetch(
-        `https://api.clerk.com/v1/users/${account.clerkId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${clerkSecretKey}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // 404 means "already deleted at Clerk" - treat as success so the
-      // user can still clean up their Convex data.
-      if (!resp.ok && resp.status !== 404) {
-        const body = await resp.text().catch(() => "<read_failed>");
-        console.error("[deleteMyAccount] Clerk DELETE failed", {
-          status: resp.status,
-          body: body.slice(0, 300),
-          clerkId: account.clerkId,
-        });
-        return {
-          success: false,
-          reason: "clerk_delete_failed",
-          message:
-            "We could not remove your account from the authentication service. Please try again later or contact support.",
-        };
+    const clerkResult = await deleteClerkUser(identity.subject);
+    if (!clerkResult.ok) {
+      await ctx.runMutation(internal.accountDeletion.deleteBillingSnapshot, {
+        clerkId: identity.subject,
+      });
+      if (clerkResult.status === "no_api_key") {
+        return { success: false, reason: "no_api_key" };
       }
-    } catch (error) {
-      console.error("[deleteMyAccount] Clerk DELETE threw", error);
-      return {
-        success: false,
-        reason: "clerk_delete_failed",
-        message:
-          "Network error while removing your account. Please try again later.",
-      };
+      return { success: false, reason: "clerk_delete_failed" };
     }
 
-    const cascade = await ctx.runMutation(
-      internal.admin._deleteUserCascade,
-      { userId: account.userId }
-    );
+    const cascade = await ctx.runMutation(internal.admin._deleteUserCascade, {
+      userId: account.userId,
+    });
 
     console.log("[deleteMyAccount] Account deleted", {
-      email: account.email,
+      clerkId: identity.subject,
       totalRows: cascade.totalRows,
     });
 

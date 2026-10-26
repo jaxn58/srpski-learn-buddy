@@ -1161,6 +1161,13 @@ export const _deleteUserCascade = internalMutation({
     bump("wishlistUpvotes", wishlistUpvotesByUser.length);
 
     // ---- Chat ----
+    const chatMessageFeedback = await ctx.db
+      .query("chatMessageFeedback")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of chatMessageFeedback) await ctx.db.delete(row._id);
+    bump("chatMessageFeedback", chatMessageFeedback.length);
+
     const chatFolders = await ctx.db
       .query("chatFolders")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))

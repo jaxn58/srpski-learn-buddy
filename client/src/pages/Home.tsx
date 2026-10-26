@@ -604,7 +604,10 @@ export default function Home() {
                 ? t("home.hero.descriptionWaitlist")
                 : t("home.hero.description", HOME_COUNTS),
             }}
-          />
+            />
+          <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
+            {t("home.guarantee.line")}
+          </p>
           <div className="flex flex-wrap gap-3 sm:gap-4 justify-center pt-4">
             {!isAuthenticated ? (
               <>
@@ -792,6 +795,9 @@ export default function Home() {
               className="text-base sm:text-lg md:text-xl text-muted-foreground" 
               dangerouslySetInnerHTML={{ __html: t('home.pricing.subtitle') }}
             />
+            <p className="text-sm sm:text-base text-muted-foreground">
+              {t("home.guarantee.line")}
+            </p>
           </div>
 
           {/* Learning Language (required before signup/purchase) */}

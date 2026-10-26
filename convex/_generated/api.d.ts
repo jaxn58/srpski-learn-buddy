@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as accountDeletion from "../accountDeletion.js";
 import type * as admin from "../admin.js";
 import type * as ai_chatConfig from "../ai/chatConfig.js";
 import type * as ai_chatModelCatalog from "../ai/chatModelCatalog.js";
@@ -105,6 +106,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accountDeletion: typeof accountDeletion;
   admin: typeof admin;
   "ai/chatConfig": typeof ai_chatConfig;
   "ai/chatModelCatalog": typeof ai_chatModelCatalog;

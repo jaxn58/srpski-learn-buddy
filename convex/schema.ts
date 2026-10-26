@@ -1,7 +1,7 @@
 /**
  * Convex Database Schema
  *
- * 55 tables organized into 9 logical modules:
+ * 57 tables organized into 9 logical modules:
  *
  *   core.ts           – Users, user progress, subscriptions (incl. featureTier + energy), subscription history
  *   learning.ts       – Unit metadata, modules, unit content, audio, interactive tests
@@ -15,7 +15,7 @@
  *   system.ts         – App versions, changelog, onboarding, dashboard announcements, backups, Dodo webhook events, platform config
  *
  * Note: TS2589 ("Type instantiation is excessively deep") in Convex function files is a known
- * TypeScript limitation with large schemas (55 tables). These errors are suppressed via
+ * TypeScript limitation with large schemas (57 tables). These errors are suppressed via
  * `// @ts-ignore TS2589` comments in affected files (see scripts/add-ts-expect-errors.mjs).
  * Convex validates types at its own runtime layer regardless of TypeScript checks.
  * Run `node scripts/add-ts-expect-errors.mjs --apply` after adding new Convex functions.

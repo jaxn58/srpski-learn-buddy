@@ -26,7 +26,64 @@ export const systemTables = {
     environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"), v.literal("dev_mode"))),
   })
     .index("by_webhook_id", ["webhookId"])
-    .index("by_type", ["eventType"]),
+    .index("by_type", ["eventType"])
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_payment_id", ["paymentId"])
+    .index("by_subscription_id", ["subscriptionId"]),
+
+  // One refund attempt per account. Kept after the user row is gone (no cascade).
+  accountRefunds: defineTable({
+    clerkId: v.string(),
+    userId: v.optional(v.id("users")),
+    email: v.optional(v.string()),
+    paymentId: v.string(),
+    providerSubscriptionId: v.optional(v.string()),
+    amountCents: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    status: v.union(
+      v.literal("claimed"),
+      v.literal("pending"),
+      v.literal("review"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+    ),
+    dodoRefundId: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    requestedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    installmentsCancelRequestedAt: v.optional(v.number()),
+    subscriptionCancelledAt: v.optional(v.number()),
+    deletionCompletedAt: v.optional(v.number()),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_payment_id", ["paymentId"])
+    .index("by_provider_subscription_id", ["providerSubscriptionId"]),
+
+  // Accounting snapshot that survives account deletion. No learning data.
+  billingRecords: defineTable({
+    clerkId: v.string(),
+    email: v.optional(v.string()),
+    planType: v.optional(v.string()),
+    paymentMode: v.optional(v.union(v.literal("prepaid"), v.literal("installments"))),
+    providerSubscriptionId: v.optional(v.string()),
+    paymentIds: v.array(v.string()),
+    charges: v.array(v.object({
+      paymentId: v.string(),
+      amountCents: v.optional(v.number()),
+      paidAt: v.optional(v.number()),
+      eventType: v.string(),
+    })),
+    amountCents: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    refundId: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    installmentsContinue: v.boolean(),
+    accountDeletedAt: v.number(),
+    reason: v.union(v.literal("account_deleted"), v.literal("refund_completed")),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_provider_subscription_id", ["providerSubscriptionId"]),
 
   // ============= APP VERSIONS =============
   appVersions: defineTable({

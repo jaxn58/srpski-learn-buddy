@@ -22,11 +22,13 @@ import {
 
 const BATCH_SIZE = 25;
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const run = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),
     cursor: v.optional(v.string()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     dryRun: v.boolean(),
     repointed: v.number(),
@@ -144,11 +146,13 @@ export const run = internalMutation({
  * Example loop (PowerShell):
  *   $cursor = $null; do { ... } while (-not $result.isDone)
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const runAll = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),
     cursor: v.optional(v.string()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     dryRun: v.boolean(),
     repointed: v.number(),

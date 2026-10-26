@@ -74,10 +74,12 @@ function stripDeMarkerPrefix(noteDe: string): string | null {
   return null;
 }
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const run = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     dryRun: v.boolean(),
     totalScanned: v.number(),

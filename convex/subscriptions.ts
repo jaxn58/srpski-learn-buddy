@@ -1736,6 +1736,33 @@ function parseDodoBeta50(meta: Record<string, any>): boolean {
   return meta?.beta50 === true || meta?.beta50 === "true" || meta?.beta50 === 1 || meta?.beta50 === "1";
 }
 
+function parseDodoPaidAt(data: any, fallback: number): number {
+  const raw = data?.created_at ?? data?.createdAt;
+  if (typeof raw === "string") {
+    const ms = Date.parse(raw);
+    if (Number.isFinite(ms)) return ms;
+  }
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw < 1e12 ? raw * 1000 : raw;
+  return fallback;
+}
+
+function parseDodoAmountCents(data: any): number | undefined {
+  const candidates = [data?.total_amount, data?.amount, data?.settlement_amount];
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.round(value);
+    if (typeof value === "string" && /^\d+$/.test(value)) return parseInt(value, 10);
+  }
+  return undefined;
+}
+
+async function userExistsByClerkId(ctx: MutationCtx, clerkId: string): Promise<boolean> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+    .first();
+  return Boolean(user);
+}
+
 async function findSubscriptionByDodoSubscriptionId(ctx: MutationCtx, subscriptionId: string) {
   return await ctx.db
     .query("userSubscriptions")
@@ -1842,6 +1869,23 @@ export const internalProcessDodoWebhook = internalMutation({
       environment: args.environment,
     });
 
+    if (eventType === "refund.succeeded" || eventType === "refund.failed") {
+      const refundIdRaw = (data as any)?.refund_id ?? (data as any)?.refundId;
+      const refundResult = await ctx.runMutation(internal.accountDeletion.applyRefundWebhook, {
+        eventType,
+        paymentId: paymentId ?? "",
+        dodoRefundId: typeof refundIdRaw === "string" ? refundIdRaw : undefined,
+        amountCents: parseDodoAmountCents(data),
+      });
+      if (refundResult.scheduleFinalize && refundResult.clerkId) {
+        await ctx.scheduler.runAfter(0, internal.accountDeletion.finalizeRefundedAccount, {
+          clerkId: refundResult.clerkId,
+        });
+      }
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: refundResult.scheduleFinalize || eventType === "refund.failed" ? "applied" as const : "ignored" as const };
+    }
+
     // ===== Payment failures: pause access =====
     if (eventType === "payment.failed" || eventType === "subscription.on_hold") {
       if (subscriptionId) {
@@ -1864,6 +1908,16 @@ export const internalProcessDodoWebhook = internalMutation({
 
     // ===== Subscription cancelled/expired: mirror state =====
     if (eventType === "subscription.cancelled" || eventType === "subscription.expired") {
+      if (eventType === "subscription.cancelled" && subscriptionId) {
+        const cancellation = await ctx.runMutation(internal.accountDeletion.noteProviderCancellation, {
+          providerSubscriptionId: subscriptionId,
+        });
+        // An in-flight refund keeps local access until refund.succeeded.
+        if (cancellation.inFlight) {
+          await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+          return { status: "applied" as const };
+        }
+      }
       if (subscriptionId) {
         const sub = await findSubscriptionByDodoSubscriptionId(ctx, subscriptionId);
         if (sub) {
@@ -1891,6 +1945,32 @@ export const internalProcessDodoWebhook = internalMutation({
       const planType = parseDodoPlanType(meta);
       const beta50 = parseDodoBeta50(meta);
       const flow = String((meta as any)?.flow ?? "").trim().toLowerCase();
+      const kind = String((meta as any)?.kind ?? "").trim().toLowerCase();
+      const paidAt = parseDodoPaidAt(data, args.receivedAt);
+      const paidAmountCents = parseDodoAmountCents(data);
+
+      if (clerkId && !(await userExistsByClerkId(ctx, clerkId))) {
+        await ctx.runMutation(internal.accountDeletion.appendRetainedChargeIfAny, {
+          clerkId,
+          subscriptionId,
+          paymentId,
+          amountCents: paidAmountCents,
+          paidAt,
+          eventType,
+        });
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
+
+      if (kind !== "topup" && flow !== "upgrade" && clerkId && paymentId) {
+        await ctx.runMutation(internal.accountDeletion.noteFirstPlanPayment, {
+          clerkId,
+          paymentId,
+          paidAt,
+          amountCents: paidAmountCents,
+          flow: paymentMode === "installments" ? "installment" : "purchase",
+        });
+      }
 
       if (paymentMode !== "prepaid") {
         // Subscription renewals are handled via subscription.renewed to avoid double-counting.
@@ -1924,7 +2004,6 @@ export const internalProcessDodoWebhook = internalMutation({
         });
       } else {
         // Check if this is a top-up payment (kind="topup" in metadata).
-        const kind = String((meta as any)?.kind ?? "").trim().toLowerCase();
         if (kind === "topup") {
           const pack = String((meta as any)?.pack ?? "").trim().toLowerCase();
           const energyAmount = parseInt(String((meta as any)?.energyAmount ?? "0"), 10);
@@ -1961,6 +2040,9 @@ export const internalProcessDodoWebhook = internalMutation({
           paymentMode: "prepaid",
           dodoSubscriptionId: undefined,
           isBeta50: beta50,
+          dodoPaymentId: paymentId,
+          paidAt,
+          paidAmountCents,
         });
 
         // Welcome-Energy for first-time Sprachkurs + AI Pro purchase (highest tier).
@@ -1984,6 +2066,29 @@ export const internalProcessDodoWebhook = internalMutation({
       }
 
       const existing = await findSubscriptionByDodoSubscriptionId(ctx, subscriptionId);
+      if (!existing && clerkId && !(await userExistsByClerkId(ctx, clerkId))) {
+        await ctx.runMutation(internal.accountDeletion.appendRetainedChargeIfAny, {
+          clerkId,
+          subscriptionId,
+          paymentId,
+          amountCents: parseDodoAmountCents(data),
+          paidAt: parseDodoPaidAt(data, args.receivedAt),
+          eventType,
+        });
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
+      if (!existing && !clerkId) {
+        await ctx.runMutation(internal.accountDeletion.appendRetainedChargeIfAny, {
+          subscriptionId,
+          paymentId,
+          amountCents: parseDodoAmountCents(data),
+          paidAt: parseDodoPaidAt(data, args.receivedAt),
+          eventType,
+        });
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
       if (existing) {
         // Increment paid months only for installments.
         if (existing.paymentMode === "installments") {
@@ -2024,6 +2129,16 @@ export const internalProcessDodoWebhook = internalMutation({
           }
         }
 
+        if (clerkId && paymentId) {
+          await ctx.runMutation(internal.accountDeletion.noteFirstPlanPayment, {
+            clerkId,
+            paymentId,
+            paidAt: parseDodoPaidAt(data, args.receivedAt),
+            amountCents: parseDodoAmountCents(data),
+            flow: "installment",
+          });
+        }
+
         await ctx.db.patch(eventDocId, { processedAt: Date.now() });
         return { status: "applied" as const };
       }
@@ -2049,6 +2164,9 @@ export const internalProcessDodoWebhook = internalMutation({
         paymentMode: "installments",
         dodoSubscriptionId: subscriptionId,
         isBeta50: false,
+        dodoPaymentId: paymentId,
+        paidAt: parseDodoPaidAt(data, args.receivedAt),
+        paidAmountCents: parseDodoAmountCents(data),
       });
 
       await ctx.db.patch(eventDocId, { processedAt: Date.now() });
@@ -2071,6 +2189,9 @@ export const internalApplyDodoPurchase = internalMutation({
     paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
     dodoSubscriptionId: v.optional(v.string()),
     isBeta50: v.boolean(),
+    dodoPaymentId: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
+    paidAmountCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -2111,6 +2232,29 @@ export const internalApplyDodoPurchase = internalMutation({
       args.paymentMode === "installments" ? getInstallmentMonthlyChargeCents(args.planType) : undefined;
     const installmentsTotalMonths = args.paymentMode === "installments" ? args.planDurationMonths : undefined;
 
+    let planPurchaseCount: number;
+    if (!existing) {
+      planPurchaseCount = 1;
+    } else if (
+      args.dodoPaymentId &&
+      existing.firstPaymentId &&
+      args.dodoPaymentId !== existing.firstPaymentId &&
+      existing.planType !== "beta"
+    ) {
+      planPurchaseCount = (existing.planPurchaseCount ?? 1) + 1;
+    } else {
+      planPurchaseCount = existing.planPurchaseCount ?? 1;
+    }
+
+    const firstPayment =
+      args.dodoPaymentId && !existing?.firstPaymentId
+        ? {
+            firstPaymentId: args.dodoPaymentId,
+            firstPaidAt: args.paidAt ?? now,
+            ...(args.paidAmountCents != null ? { firstPaidAmountCents: args.paidAmountCents } : {}),
+          }
+        : {};
+
     const payload = {
       planType: args.planType,
       planDurationMonths: args.planDurationMonths,
@@ -2129,6 +2273,8 @@ export const internalApplyDodoPurchase = internalMutation({
       pausedAt: undefined as number | undefined,
       // Derive feature tier from compound plan ID.
       featureTier: tierForPlanType(args.planType) as "course" | "standalone" | "course_ai" | "course_ai_pro",
+      planPurchaseCount,
+      ...firstPayment,
     };
 
     if (existing) {
@@ -2229,6 +2375,7 @@ export const internalApplyDodoUpgrade = internalMutation({
       billingProvider: "dodo",
       pausedAt: undefined,
       featureTier: tierForPlanType(args.toPlanType) as "course" | "standalone" | "course_ai" | "course_ai_pro",
+      planPurchaseCount: (existing.planPurchaseCount ?? 1) + 1,
     });
 
     await ctx.db.insert("subscriptionHistory", {
